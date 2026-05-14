@@ -1,0 +1,48 @@
+services:
+  db:
+    image: postgres:17
+    container_name: campus_db_cont
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: always
+
+  backend:
+    build: .
+    image: campus-api
+    container_name: campus_backend_cont
+    command: python manage.py runserver 0.0.0.0:8888
+    volumes:
+      - .:/app
+    ports:
+      - "8888:8888"
+    env_file:
+      - .env
+    environment:
+      - DB_HOST=db
+      - DB_PORT=5432
+      - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1
+    depends_on:
+      - db
+
+  frontend:
+    build: ../frontend
+    image: campus-web
+    container_name: campus_frontend_cont
+    command: npm run dev -- --host
+    volumes:
+      - ../frontend:/app
+      - /app/node_modules
+    ports:
+      - "5175:5173"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
