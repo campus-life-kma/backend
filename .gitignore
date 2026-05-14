@@ -1,0 +1,38 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# --- Django ---
+db.sqlite3
+db.sqlite3-journal
+media/
+static/
+staticfiles/
+
+# --- База даних та Секрети ---
+.env
+.env.local
+.env.*.local
+db_data/
+postgres_data/
+
+# --- IDE (JetBrains, VSCode) ---
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# --- Docker ---
+.docker-compose.override.yml
+
+# --- OS ---
+.DS_Store
+Thumbs.db
