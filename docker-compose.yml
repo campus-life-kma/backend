@@ -1,7 +1,8 @@
+name: campus_life
+
 services:
   db:
     image: postgres:17
-    container_name: campus_db_cont
     environment:
       POSTGRES_DB: ${DB_NAME}
       POSTGRES_USER: ${DB_USER}
@@ -15,7 +16,6 @@ services:
   backend:
     build: .
     image: campus-api
-    container_name: campus_backend_cont
     command: python manage.py runserver 0.0.0.0:8888
     volumes:
       - .:/app
@@ -34,7 +34,6 @@ services:
   frontend:
     build: ../frontend
     image: campus-web
-    container_name: campus_frontend_cont
     command: npm run dev -- --host
     volumes:
       - ../frontend:/app
