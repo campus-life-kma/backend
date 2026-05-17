@@ -14,6 +14,8 @@ def insert_initial_data(apps, schema_editor):
     User = apps.get_model('api', 'User')
     Faculty = apps.get_model('api', 'Faculty')
     Major = apps.get_model('api', 'Major')
+    SocialSharingStatus = apps.get_model('api', 'SocialSharingStatus')
+    BookingStatus = apps.get_model('api', 'BookingStatus')
 
     #Статичні дані (які будуть завжди)
 
@@ -36,6 +38,18 @@ def insert_initial_data(apps, schema_editor):
         RoomType(type='LAUNDRY'),
         RoomType(type='KITCHEN'),
         RoomType(type='BATHROOM')
+    ])
+
+    SocialSharingStatus.objects.bulk_create([
+        SocialSharingStatus(status='ACTIVE'),
+        SocialSharingStatus(status='CANCELLED'),
+        SocialSharingStatus(status='COMPLETED')
+    ])
+
+    BookingStatus.objects.bulk_create([
+        BookingStatus(status='ACTIVE'),
+        BookingStatus(status='CANCELLED'),
+        BookingStatus(status='COMPLETED')
     ])
 
     faculty_humanities = Faculty.objects.create(name="Факультет гуманітарних наук")
@@ -166,19 +180,19 @@ def insert_initial_data(apps, schema_editor):
         User(
             email="user1@ukma.edu.ua", password=unusable_password, role=resident_role, room=room_41_1,
             is_activated=True,
-            name="Дмитро", surname="Коваленко", year=4, major=major_t, status="Вчуся",
+            full_name="Коваленко Дмитро", year=4, major=major_t, status="Вчуся",
             bio="Працюю над проєктами та дедлайнами."
         ),
         User(
             email="user2@ukma.edu.ua", password=unusable_password, role=resident_role, room=room_41_1,
             is_activated=True,
-            name="Іван", surname="Шевченко", year=3, major=major_t,
+            full_name="Шевченко Іван", year=3, major=major_t,
             bio="Збираю ресурси на лабораторні роботи."
         ),
         User(
             email="user3@ukma.edu.ua", password=unusable_password, role=resident_role, room=room_41_1,
             is_activated=True,
-            name="Олексій", surname="Бойко", year=2, major=major_t, status="На кухні",
+            full_name="Бойко Олексій", year=2, major=major_t, status="На кухні",
         ),
     ])
 
@@ -188,8 +202,7 @@ def insert_initial_data(apps, schema_editor):
         role=moderator_role,
         room=room_admin,
         is_activated=True,
-        name="Староста",
-        surname="Поверху",
+        full_name="Староста Поверху",
     )
 
     User.objects.create(
@@ -200,8 +213,7 @@ def insert_initial_data(apps, schema_editor):
         is_activated=True,
         is_staff=True,
         is_superuser=True,
-        name="Головний",
-        surname="Адміністратор",
+        full_name="Головний Адміністратор",
         status="Бог сервера",
         bio="Маю доступ до всіх таблиць бази даних."
     )
@@ -213,6 +225,7 @@ def reverse_initial_data(apps, schema_editor):
     Dormitory = apps.get_model('api', 'Dormitory')
     Faculty = apps.get_model('api', 'Faculty')
     User = apps.get_model('api', 'User')
+    SocialSharingStatus = apps.get_model('api', 'SocialSharingStatus')
 
     User.objects.all().delete()
     Dormitory.objects.all().delete()
@@ -220,6 +233,7 @@ def reverse_initial_data(apps, schema_editor):
     Role.objects.all().delete()
     TargetType.objects.all().delete()
     RoomType.objects.all().delete()
+    SocialSharingStatus.objects.all().delete()
 
 class Migration(migrations.Migration):
 
