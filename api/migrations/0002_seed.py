@@ -180,19 +180,19 @@ def insert_initial_data(apps, schema_editor):
         User(
             email="user1@ukma.edu.ua", password=unusable_password, role=resident_role, room=room_41_1,
             is_activated=True,
-            name="Дмитро", surname="Коваленко", year=4, major=major_t, status="Вчуся",
+            full_name="Коваленко Дмитро", year=4, major=major_t, status="Вчуся",
             bio="Працюю над проєктами та дедлайнами."
         ),
         User(
             email="user2@ukma.edu.ua", password=unusable_password, role=resident_role, room=room_41_1,
             is_activated=True,
-            name="Іван", surname="Шевченко", year=3, major=major_t,
+            full_name="Шевченко Іван", year=3, major=major_t,
             bio="Збираю ресурси на лабораторні роботи."
         ),
         User(
             email="user3@ukma.edu.ua", password=unusable_password, role=resident_role, room=room_41_1,
             is_activated=True,
-            name="Олексій", surname="Бойко", year=2, major=major_t, status="На кухні",
+            full_name="Бойко Олексій", year=2, major=major_t, status="На кухні",
         ),
     ])
 
@@ -202,8 +202,7 @@ def insert_initial_data(apps, schema_editor):
         role=moderator_role,
         room=room_admin,
         is_activated=True,
-        name="Староста",
-        surname="Поверху",
+        full_name="Староста Поверху",
     )
 
     User.objects.create(
@@ -214,8 +213,7 @@ def insert_initial_data(apps, schema_editor):
         is_activated=True,
         is_staff=True,
         is_superuser=True,
-        name="Головний",
-        surname="Адміністратор",
+        full_name="Головний Адміністратор",
         status="Бог сервера",
         bio="Маю доступ до всіх таблиць бази даних."
     )

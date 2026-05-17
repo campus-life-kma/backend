@@ -24,9 +24,9 @@ from .models import (
 
 @admin.register(User)
 class CustomUserAdmin(admin.ModelAdmin):
-    list_display = ("email", "name", "surname", "major", "year", "is_activated")
+    list_display = ("email", "full_name", "major", "year", "is_activated")
     list_filter = ("is_activated", "year", "role", "is_staff")
-    search_fields = ("email", "name", "surname")
+    search_fields = ("email", "full_name")
     ordering = ("email",)
 
 

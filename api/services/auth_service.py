@@ -29,7 +29,7 @@ class LoginService:
     PHOTO_API_URL = "https://graph.microsoft.com/v1.0/me/photo/$value"
 
     def _activate_user(self, user: User, dto: MicrosoftUserDTO, headers: dict) -> None:
-        names_changed = self._update_user_names(user, dto)
+        names_changed = self._update_user_name(user, dto)
         academic_changed = self._update_user_academic_info(user, dto)
         photo_changed = self._update_user_photo(user, headers)
 
@@ -38,27 +38,15 @@ class LoginService:
 
         user.is_activated = True
 
-    def _update_user_names(self, user: User, dto: MicrosoftUserDTO) -> bool:
+    def _update_user_name(self, user: User, dto: MicrosoftUserDTO) -> bool:
         user_changed = False
-        surname, name, middle_name = dto.get_parsed_name()
+        full_name = dto.display_name
 
-        if not user.surname and surname:
-            user.surname = surname
+        if not user.full_name and full_name:
+            user.full_name = full_name
             user_changed = True
-        elif not surname:
-            logger.info("User surname not found in microsoft database!")
-
-        if not user.name and name:
-            user.name = name
-            user_changed = True
-        elif not name:
-            logger.info("User name not found in microsoft database!")
-
-        if not user.middle_name and middle_name:
-            user.middle_name = middle_name
-            user_changed = True
-        elif not middle_name:
-            logger.info("User middle name not found in microsoft database!")
+        elif not full_name:
+            logger.info("User full_name not found in microsoft database!")
 
         return user_changed
 

@@ -47,9 +47,7 @@ class User(AbstractUser):
     username = None
     email = models.EmailField(unique=True, help_text="Корпоративна електронна пошта (наприклад, @ukma.edu.ua)")
 
-    surname = models.CharField(max_length=100, null=True, blank=True, help_text="Прізвище мешканця")
-    name = models.CharField(max_length=100, null=True, blank=True, help_text="Ім'я мешканця")
-    middle_name = models.CharField(max_length=100, null=True, blank=True, help_text="По батькові")
+    full_name = models.CharField(max_length=500, null=True, blank=True, help_text="Повне ім'я мешканця")
     year = models.SmallIntegerField(
         null=True,
         blank=True,
@@ -103,6 +101,6 @@ class User(AbstractUser):
         return self.role and self.role.name == "MODERATOR"
 
     def __str__(self):
-        if self.name and self.surname:
-            return f"{self.email} ({self.name} {self.surname})"
+        if self.full_name:
+            return f"{self.email} ({self.full_name})"
         return self.email

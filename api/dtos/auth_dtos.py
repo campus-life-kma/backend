@@ -19,17 +19,6 @@ class MicrosoftUserDTO:
     def is_valid_email(self) -> bool:
         return self.email.endswith("@ukma.edu.ua")
 
-    def get_parsed_name(self) -> tuple[str, str, str]:
-        if not self.display_name:
-            return "", "", ""
-
-        parts = self.display_name.strip().split()
-        surname = parts[0] if len(parts) > 0 else ""
-        name = parts[1] if len(parts) > 1 else ""
-        middle_name = " ".join(parts[2:]) if len(parts) > 2 else ""
-
-        return surname, name, middle_name
-
     def get_parsed_academic_info(self) -> tuple[str | None, int | None]:
         if not self.job_title:
             return None, None
