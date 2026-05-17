@@ -14,6 +14,8 @@ def insert_initial_data(apps, schema_editor):
     User = apps.get_model('api', 'User')
     Faculty = apps.get_model('api', 'Faculty')
     Major = apps.get_model('api', 'Major')
+    SocialSharingStatus = apps.get_model('api', 'SocialSharingStatus')
+    BookingStatus = apps.get_model('api', 'BookingStatus')
 
     #Статичні дані (які будуть завжди)
 
@@ -36,6 +38,18 @@ def insert_initial_data(apps, schema_editor):
         RoomType(type='LAUNDRY'),
         RoomType(type='KITCHEN'),
         RoomType(type='BATHROOM')
+    ])
+
+    SocialSharingStatus.objects.bulk_create([
+        SocialSharingStatus(status='ACTIVE'),
+        SocialSharingStatus(status='CANCELLED'),
+        SocialSharingStatus(status='COMPLETED')
+    ])
+
+    BookingStatus.objects.bulk_create([
+        BookingStatus(status='ACTIVE'),
+        BookingStatus(status='CANCELLED'),
+        BookingStatus(status='COMPLETED')
     ])
 
     faculty_humanities = Faculty.objects.create(name="Факультет гуманітарних наук")
@@ -213,6 +227,7 @@ def reverse_initial_data(apps, schema_editor):
     Dormitory = apps.get_model('api', 'Dormitory')
     Faculty = apps.get_model('api', 'Faculty')
     User = apps.get_model('api', 'User')
+    SocialSharingStatus = apps.get_model('api', 'SocialSharingStatus')
 
     User.objects.all().delete()
     Dormitory.objects.all().delete()
@@ -220,6 +235,7 @@ def reverse_initial_data(apps, schema_editor):
     Role.objects.all().delete()
     TargetType.objects.all().delete()
     RoomType.objects.all().delete()
+    SocialSharingStatus.objects.all().delete()
 
 class Migration(migrations.Migration):
 
