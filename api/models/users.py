@@ -94,6 +94,14 @@ class User(AbstractUser):
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = []
 
+    @property
+    def is_admin(self) -> bool:
+        return self.role and self.role.name == "ADMIN"
+
+    @property
+    def is_moderator(self) -> bool:
+        return self.role and self.role.name == "MODERATOR"
+
     def __str__(self):
         if self.name and self.surname:
             return f"{self.email} ({self.name} {self.surname})"
