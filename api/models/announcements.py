@@ -7,7 +7,8 @@ class TargetType(models.Model):
     type = models.CharField(
         max_length=100,
         unique=True,
-        help_text="Тип аудиторії, для якої призначене оголошення (наприклад, 'GLOBAL', 'FLOOR', 'ROOM', 'SPECIFIC_USERS')",
+        help_text="Тип аудиторії, для якої призначене оголошення "
+        "(наприклад, 'GLOBAL', 'FLOOR', 'ROOM', 'SPECIFIC_USERS')",
     )
 
     def __str__(self):
@@ -35,7 +36,8 @@ class Announcement(models.Model):
         null=True,
         blank=True,
         related_name="announcements",
-        help_text="Оберіть поверх, якщо оголошення стосується лише його мешканців (наприклад, 'Ремонт душу на 3-му поверсі')",
+        help_text="Оберіть поверх, якщо оголошення стосується лише його мешканців "
+        "(наприклад, 'Ремонт душу на 3-му поверсі')",
     )
 
     target_room = models.ForeignKey(
@@ -61,7 +63,8 @@ class Announcement(models.Model):
     expires_at = models.DateTimeField(
         null=True,
         blank=True,
-        help_text="Час, коли оголошення перестане бути актуальним і зникне зі стрічки мешканців, якщо null - до першого перегляду",
+        help_text="Час, коли оголошення перестане бути актуальним і зникне зі стрічки мешканців, "
+        "якщо null - до першого перегляду",
     )
     is_pinned = models.BooleanField(
         default=False, help_text="Якщо True, оголошення буде закріплене вгорі стрічки, незалежно від дати створення"
