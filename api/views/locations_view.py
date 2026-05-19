@@ -24,38 +24,26 @@ class FloorsView(APIView):
                 location="path",
                 required=True,
                 description="Унікальний ідентифікатор гуртожитку (наприклад, 1 для Гуртожитку №1).",
-                examples=[
-                    OpenApiExample("Гуртожиток №1", value=1),
-                    OpenApiExample("Гуртожиток №2", value=2)
-                ]
+                examples=[OpenApiExample("Гуртожиток №1", value=1), OpenApiExample("Гуртожиток №2", value=2)],
             )
         ],
         responses={
             200: OpenApiResponse(
-                response=FloorListSerializer(many=True),
-                description="Успішне отримання списку поверхів."
+                response=FloorListSerializer(many=True), description="Успішне отримання списку поверхів."
             ),
             401: OpenApiResponse(
                 description="Не авторизовано (відсутній або недійсний токен).",
                 response=dict,
-                examples=[
-                    OpenApiExample(
-                        "Помилка авторизації",
-                        value={"detail": "Дані авторизації не надані!."}
-                    )
-                ]
+                examples=[OpenApiExample("Помилка авторизації", value={"detail": "Дані авторизації не надані!."})],
             ),
             404: OpenApiResponse(
                 description="Гуртожиток не знайдено.",
                 response=dict,
                 examples=[
-                    OpenApiExample(
-                        "Гуртожиток відсутній",
-                        value={"detail": "Гуртожитку з таким id не знайдено!"}
-                    )
-                ]
-            )
-        }
+                    OpenApiExample("Гуртожиток відсутній", value={"detail": "Гуртожитку з таким id не знайдено!"})
+                ],
+            ),
+        },
     )
     def get(self, request, dormitory_id):
         service = LocationsService()
@@ -77,7 +65,7 @@ class FloorMapDataView(APIView):
         tags=["Локації"],
         summary="Отримання мапи поверху",
         description="Ендпоінт для отримання мапи конкретного поверху за його ID, "
-                    "з кімнатами, ресурсами, івентами та користувачами на ньому",
+        "з кімнатами, ресурсами, івентами та користувачами на ньому",
         parameters=[
             OpenApiParameter(
                 name="floor_id",
@@ -85,10 +73,7 @@ class FloorMapDataView(APIView):
                 location="path",
                 required=True,
                 description="Унікальний ідентифікатор поверху (його ID у базі даних, а не фізичний номер).",
-                examples=[
-                    OpenApiExample("Поверх 1", value=1),
-                    OpenApiExample("Поверх 2", value=2)
-                ]
+                examples=[OpenApiExample("Поверх 1", value=1), OpenApiExample("Поверх 2", value=2)],
             )
         ],
         responses={
@@ -116,15 +101,15 @@ class FloorMapDataView(APIView):
                                         {
                                             "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
                                             "display_name": "Новий мешканець",
-                                            "photo": None
+                                            "photo": None,
                                         },
                                         {
                                             "id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
                                             "display_name": "Новий мешканець",
-                                            "photo": None
-                                        }
+                                            "photo": None,
+                                        },
                                     ],
-                                    "active_events": []
+                                    "active_events": [],
                                 },
                                 {
                                     "id": 102,
@@ -134,12 +119,7 @@ class FloorMapDataView(APIView):
                                     "is_blocked": False,
                                     "svg_element_id": "kitchen_left_polygon",
                                     "resources": [
-                                        {
-                                            "id": 1,
-                                            "name": "Електроплита №1",
-                                            "max_person": 1,
-                                            "is_blocked": False
-                                        }
+                                        {"id": 1, "name": "Електроплита №1", "max_person": 1, "is_blocked": False}
                                     ],
                                     "current_users": [],
                                     "active_events": [
@@ -149,12 +129,13 @@ class FloorMapDataView(APIView):
                                             "creator": {
                                                 "id": "a1b2c3d4-5678-90ab-cdef-1234567890ab",
                                                 "display_name": "Surname Name Middle_name",
-                                                "photo": "/media/avatars/avatar_87fb51a6-5abd-4398-bd5f-7a15dfdafa2d.jpg"
+                                                "photo": "/media/avatars/"
+                                                "avatar_87fb51a6-5abd-4398-bd5f-7a15dfdafa2d.jpg",
                                             },
-                                            "participants_count": 3
+                                            "participants_count": 3,
                                         }
-                                    ]
-                                }
+                                    ],
+                                },
                             ],
                             "active_floor_events": [
                                 {
@@ -163,36 +144,26 @@ class FloorMapDataView(APIView):
                                     "creator": {
                                         "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
                                         "display_name": "Безух Данило Валентинович",
-                                        "photo": "/media/avatars/avatar_87fb51a6-5abd-4398-bd5f-7a15dfdafa2d.jpg"
+                                        "photo": "/media/avatars/avatar_87fb51a6-5abd-4398-bd5f-7a15dfdafa2d.jpg",
                                     },
-                                    "participants_count": 8
+                                    "participants_count": 8,
                                 }
-                            ]
-                        }
+                            ],
+                        },
                     )
-                ]
+                ],
             ),
             401: OpenApiResponse(
                 description="Не авторизовано (відсутній або недійсний токен).",
                 response=dict,
-                examples=[
-                    OpenApiExample(
-                        "Помилка авторизації",
-                        value={"detail": "Дані авторизації не надані!."}
-                    )
-                ]
+                examples=[OpenApiExample("Помилка авторизації", value={"detail": "Дані авторизації не надані!."})],
             ),
             404: OpenApiResponse(
                 description="Поверх не знайдено.",
                 response=dict,
-                examples=[
-                    OpenApiExample(
-                        "Поверх відсутній",
-                        value={"detail": "Поверху з таким id не знайдено!"}
-                    )
-                ]
-            )
-        }
+                examples=[OpenApiExample("Поверх відсутній", value={"detail": "Поверху з таким id не знайдено!"})],
+            ),
+        },
     )
     def get(self, request, floor_id):
         try:
@@ -201,7 +172,4 @@ class FloorMapDataView(APIView):
 
             return Response(serializer.data, status=status.HTTP_200_OK)
         except Floor.DoesNotExist:
-            return Response(
-                {"detail": "Поверху з таким id не знайдено!"},
-                status=status.HTTP_404_NOT_FOUND
-            )
+            return Response({"detail": "Поверху з таким id не знайдено!"}, status=status.HTTP_404_NOT_FOUND)

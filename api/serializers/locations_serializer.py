@@ -20,7 +20,9 @@ class ResourceSerializer(serializers.ModelSerializer):
 
 
 class RoomMapSerializer(serializers.ModelSerializer):
-    room_type = serializers.CharField(source="room_type.type", help_text="Категорія приміщення (наприклад, 'Житлова', 'Кухня', 'Душова', 'Пральня')")
+    room_type = serializers.CharField(
+        source="room_type.type", help_text="Категорія приміщення (наприклад, 'Житлова', 'Кухня', 'Душова', 'Пральня')"
+    )
     resources = ResourceSerializer(many=True, read_only=True, help_text="Ресурси в даній кімнаті")
     current_users = serializers.SerializerMethodField(help_text="Користувачі, які зараз знаходяться на поверху")
     active_events = serializers.SerializerMethodField(help_text="Івенти, які зараз проходять в кімнаті")
@@ -36,7 +38,7 @@ class RoomMapSerializer(serializers.ModelSerializer):
             "svg_element_id",
             "resources",
             "current_users",
-            "active_events"
+            "active_events",
         ]
 
     def get_current_users(self, obj):
@@ -55,7 +57,9 @@ class RoomMapSerializer(serializers.ModelSerializer):
 
 
 class FloorMapDataSerializer(serializers.ModelSerializer):
-    dormitory_name = serializers.CharField(source="dormitory.name", help_text="Офіційна назва гуртожитку (наприклад, 'Гуртожиток №3')")
+    dormitory_name = serializers.CharField(
+        source="dormitory.name", help_text="Офіційна назва гуртожитку (наприклад, 'Гуртожиток №3')"
+    )
     rooms = RoomMapSerializer(many=True, read_only=True, help_text="Кімнати цього поверху")
     active_floor_events = serializers.SerializerMethodField(help_text="Івенти, які зараз проходять на поверху")
 

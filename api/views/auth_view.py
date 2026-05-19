@@ -23,9 +23,7 @@ class DevLoginView(APIView):
         examples=[
             OpenApiExample(
                 "Приклад вхідних даних",
-                value={
-                    "email": "user1@ukma.edu.ua"
-                },
+                value={"email": "user1@ukma.edu.ua"},
                 request_only=True,
             )
         ],
@@ -46,11 +44,11 @@ class DevLoginView(APIView):
                                 "full_name": "Коваленко Дмитро",
                                 "floor_id": "3",
                                 "dormitory_id": "1",
-                                "photo": "/media/avatars/avatar_87fb51a6-5abd-4398-bd5f-7a15dfdafa2d.jpg"
-                            }
-                        }
+                                "photo": "/media/avatars/avatar_87fb51a6-5abd-4398-bd5f-7a15dfdafa2d.jpg",
+                            },
+                        },
                     )
-                ]
+                ],
             ),
             400: OpenApiResponse(
                 description="Помилка валідації (наприклад, неправильний формат пошти).",
@@ -109,9 +107,7 @@ class LoginView(APIView):
         examples=[
             OpenApiExample(
                 "Приклад вхідних даних",
-                value={
-                    "microsoft_access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6Imti..."
-                },
+                value={"microsoft_access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6Imti..."},
                 request_only=True,
             )
         ],
@@ -132,11 +128,11 @@ class LoginView(APIView):
                                 "full_name": "Коваленко Дмитро",
                                 "floor_id": "3",
                                 "dormitory_id": "1",
-                                "photo": "/media/avatars/avatar_87fb51a6-5abd-4398-bd5f-7a15dfdafa2d.jpg"
-                            }
-                        }
+                                "photo": "/media/avatars/avatar_87fb51a6-5abd-4398-bd5f-7a15dfdafa2d.jpg",
+                            },
+                        },
                     )
-                ]
+                ],
             ),
             400: OpenApiResponse(
                 description="Помилка валідації (наприклад, неправильний формат токена).",
@@ -189,9 +185,7 @@ class LoginView(APIView):
         examples=[
             OpenApiExample(
                 "Приклад вхідних даних",
-                value={
-                    "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaC..."
-                },
+                value={"refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaC..."},
                 request_only=True,
             )
         ],
@@ -205,24 +199,20 @@ class LoginView(APIView):
                         value={
                             "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIi...",
                             "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaC...",
-                        }
+                        },
                     )
-                ]
+                ],
             ),
             401: OpenApiResponse(
                 description="Refresh токен недійсний або його термін дії закінчився.",
                 response=dict,
                 examples=[
                     OpenApiExample(
-                        "Токен недійсний",
-                        value={
-                            "detail": "Token is invalid or expired",
-                            "code": "token_not_valid"
-                        }
+                        "Токен недійсний", value={"detail": "Token is invalid or expired", "code": "token_not_valid"}
                     )
-                ]
-            )
-        }
+                ],
+            ),
+        },
     )
 )
 class CustomTokenRefreshView(TokenRefreshView):

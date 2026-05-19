@@ -11,7 +11,7 @@ class LocationsService:
 
             floors = Floor.objects.filter(dormitory=dormitory)
 
-            return floors.order_by('number')
+            return floors.order_by("number")
 
         except Dormitory.DoesNotExist:
             raise ValueError("Гуртожитку з таким id не знайдено!")

@@ -24,6 +24,7 @@ class UserBaseSerializer(serializers.ModelSerializer):
             "photo",
         ]
 
+
 class UserMapSerializer(serializers.ModelSerializer):
     display_name = serializers.SerializerMethodField()
 
