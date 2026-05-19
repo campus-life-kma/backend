@@ -23,3 +23,15 @@ class UserBaseSerializer(serializers.ModelSerializer):
             "dormitory_id",
             "photo",
         ]
+
+class UserMapSerializer(serializers.ModelSerializer):
+    display_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = ["id", "display_name", "photo"]
+
+    def get_display_name(self, obj):
+        if obj.is_activated and obj.full_name:
+            return obj.full_name
+        return "Новий мешканець"
