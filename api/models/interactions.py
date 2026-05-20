@@ -16,10 +16,19 @@ class Presence(models.Model):
         help_text="Кімната або приміщення (наприклад, 'Кухня 3-го поверху'), де відмітився мешканець",
     )
 
-    joined_at = models.DateTimeField(auto_now_add=True, help_text="Фактичний час, коли користувач натиснув 'Я тут'")
+    joined_at = models.DateTimeField(help_text="Фактичний час, коли користувач натиснув 'Я тут'")
     expires_at = models.DateTimeField(
         help_text="Час автоматичного скасування присутності (щоб уникнути 'вічних' відміток, якщо людина забула вийти)"
     )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["user"], name="unique_presence_per_user"),
+        ]
+        indexes = [
+            models.Index(fields=["expires_at"], name="presence_expires_at_idx"),
+            models.Index(fields=["room", "expires_at"], name="presence_room_expires_idx"),
+        ]
 
     def __str__(self):
         return f"{self.user.email} У {self.room.name}"

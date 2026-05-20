@@ -441,7 +441,7 @@ class Migration(migrations.Migration):
                 (
                     "joined_at",
                     models.DateTimeField(
-                        auto_now_add=True, help_text="Фактичний час, коли користувач натиснув 'Я тут'"
+                        help_text="Фактичний час, коли користувач натиснув 'Я тут'"
                     ),
                 ),
                 (
@@ -469,6 +469,15 @@ class Migration(migrations.Migration):
                     ),
                 ),
             ],
+            options={
+                "indexes": [
+                    models.Index(fields=["expires_at"], name="presence_expires_at_idx"),
+                    models.Index(fields=["room", "expires_at"], name="presence_room_expires_idx"),
+                ],
+                "constraints": [
+                    models.UniqueConstraint(fields=("user",), name="unique_presence_per_user"),
+                ],
+            },
         ),
         migrations.AddField(
             model_name="user",
