@@ -6,30 +6,18 @@ from django.utils import timezone
 from api.models import Presence, Room
 
 
-class PresenceRoomNotFoundError(Exception):
-    pass
-
-
-class PresenceRoomBlockedError(Exception):
-    pass
-
-
-class PresenceLivingRoomError(Exception):
-    pass
-
-
 class PresenceService:
     def check_in(self, user, room_id) -> Presence:
         try:
             room = Room.objects.select_related("room_type").get(id=room_id)
         except Room.DoesNotExist as exc:
-            raise PresenceRoomNotFoundError("Room with this id was not found.") from exc
+            raise ValueError("Кімнату з таким id не знайдено.") from exc
 
         if room.is_blocked:
-            raise PresenceRoomBlockedError("This room is blocked and cannot be used for presence.")
+            raise ValueError("Ця кімната заблокована, тому в ній не можна відмітити присутність.")
 
         if room.room_type.type == "LIVING":
-            raise PresenceLivingRoomError("Check-in is available only for shared spaces.")
+            raise ValueError("Відмітити присутність можна лише у спільних просторах.")
 
         now = timezone.now()
 
