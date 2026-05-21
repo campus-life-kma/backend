@@ -236,13 +236,21 @@ class AnnouncementsApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(len(mail.outbox), 0)
 
-    def test_admin_global_announcement_sends_email_to_activated_users(self):
-        User.objects.create(
+    def test_admin_global_announcement_sends_email_to_active_users(self):
+        inactive_user = User.objects.create(
             email="inactive-announcement-user@ukma.edu.ua",
             full_name="Неактивований Користувач",
             role=self.resident_role,
             room=self.room,
             is_activated=False,
+        )
+        disabled_user = User.objects.create(
+            email="disabled-announcement-user@ukma.edu.ua",
+            full_name="Деактивований Користувач",
+            role=self.resident_role,
+            room=self.room,
+            is_active=False,
+            is_activated=True,
         )
         self.client.force_authenticate(user=self.admin)
 
@@ -258,6 +266,15 @@ class AnnouncementsApiTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         recipients = {message.to[0] for message in mail.outbox}
-        self.assertTrue({self.user.email, self.other_user.email, self.moderator.email, self.admin.email} <= recipients)
-        self.assertNotIn("inactive-announcement-user@ukma.edu.ua", recipients)
+        self.assertTrue(
+            {
+                self.user.email,
+                self.other_user.email,
+                self.moderator.email,
+                self.admin.email,
+                inactive_user.email,
+            }
+            <= recipients
+        )
+        self.assertNotIn(disabled_user.email, recipients)
         self.assertTrue(all("Campus Life: Глобальна розсилка" == message.subject for message in mail.outbox))
