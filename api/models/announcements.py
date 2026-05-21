@@ -73,14 +73,14 @@ class Announcement(models.Model):
     def clean(self):
         super().clean()
         if hasattr(self, "target_type") and self.target_type is not None:
-            if self.target_type.name == "Поверх" and not self.target_floor:
-                raise ValidationError("Для типу Поверх необхідно обов'язково обрати поверх.")
+            if self.target_type.type == "FLOOR" and not self.target_floor:
+                raise ValidationError("Для оголошення на поверх необхідно обрати поверх.")
 
-            if self.target_type.name == "Кімната" and not self.target_room:
-                raise ValidationError("Для типу Кімната необхідно обов'язково обрати кімнату.")
+            if self.target_type.type == "ROOM" and not self.target_room:
+                raise ValidationError("Для оголошення на кімнату необхідно обрати кімнату.")
 
     def __str__(self):
-        return f"[{self.target_type.name}] {self.title}"
+        return f"[{self.target_type.type}] {self.title}"
 
 
 class AnnouncementRead(models.Model):
