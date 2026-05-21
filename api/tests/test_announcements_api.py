@@ -1,5 +1,7 @@
 from datetime import timedelta
 
+from django.core import mail
+from django.test import override_settings
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
@@ -8,6 +10,7 @@ from rest_framework.test import APITestCase
 from api.models import Announcement, AnnouncementRead, Dormitory, Floor, Role, Room, RoomType, TargetType, User
 
 
+@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
 class AnnouncementsApiTests(APITestCase):
     def setUp(self):
         self.resident_role, _ = Role.objects.get_or_create(name="RESIDENT")
@@ -177,6 +180,9 @@ class AnnouncementsApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["target_type"], "FLOOR")
         self.assertEqual(response.data["target_floor_id"], self.floor.id)
+        self.assertEqual(len(mail.outbox), 2)
+        recipients = {message.to[0] for message in mail.outbox}
+        self.assertEqual(recipients, {self.user.email, self.moderator.email})
 
     def test_moderator_cannot_create_global_announcement(self):
         self.client.force_authenticate(user=self.moderator)
@@ -210,6 +216,8 @@ class AnnouncementsApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["target_type"], "SPECIFIC_USERS")
         self.assertEqual(response.data["target_user_ids"], [str(self.user.id)])
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, [self.user.email])
 
     def test_create_rejects_past_expires_at(self):
         self.client.force_authenticate(user=self.admin)
@@ -226,3 +234,30 @@ class AnnouncementsApiTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_admin_global_announcement_sends_email_to_activated_users(self):
+        User.objects.create(
+            email="inactive-announcement-user@ukma.edu.ua",
+            full_name="Неактивований Користувач",
+            role=self.resident_role,
+            room=self.room,
+            is_activated=False,
+        )
+        self.client.force_authenticate(user=self.admin)
+
+        response = self.client.post(
+            reverse("announcement-create"),
+            {
+                "title": "Глобальна розсилка",
+                "message": "Повідомлення для всіх активованих користувачів",
+                "target_type": "GLOBAL",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        recipients = {message.to[0] for message in mail.outbox}
+        self.assertTrue({self.user.email, self.other_user.email, self.moderator.email, self.admin.email} <= recipients)
+        self.assertNotIn("inactive-announcement-user@ukma.edu.ua", recipients)
+        self.assertTrue(all("Campus Life: Глобальна розсилка" == message.subject for message in mail.outbox))

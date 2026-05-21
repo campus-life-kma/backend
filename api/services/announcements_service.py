@@ -2,6 +2,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from api.models import Announcement, AnnouncementRead, TargetType
+from api.services.announcement_email_service import AnnouncementEmailService
 
 
 class AnnouncementsService:
@@ -56,6 +57,11 @@ class AnnouncementsService:
         announcement = Announcement.objects.create(creator=user, **validated_data)
         if target_users:
             announcement.target_users.set(target_users)
+
+        try:
+            AnnouncementEmailService().send_announcement(announcement)
+        except Exception as exc:
+            raise ValueError("Не вдалося надіслати email-сповіщення отримувачам.") from exc
 
         return announcement
 

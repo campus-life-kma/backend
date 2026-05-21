@@ -10,6 +10,9 @@ from api.services.announcements_service import AnnouncementsService
 
 
 def get_announcement_error_status(error_message):
+    if "Не вдалося надіслати" in error_message:
+        return status.HTTP_500_INTERNAL_SERVER_ERROR
+
     if "не знайдено" in error_message:
         return status.HTTP_404_NOT_FOUND
 
@@ -188,6 +191,8 @@ class AnnouncementCreateView(APIView):
                 ],
             ),
             401: OpenApiResponse(description="Користувач не авторизований."),
+            403: OpenApiResponse(description="Недостатньо прав для створення оголошення."),
+            500: OpenApiResponse(description="Не вдалося надіслати email-сповіщення отримувачам."),
             403: OpenApiResponse(
                 response=dict,
                 description="Недостатньо прав для створення оголошення.",
