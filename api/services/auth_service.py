@@ -34,9 +34,8 @@ class LoginService:
         photo_changed = self._update_user_photo(user, headers)
 
         if names_changed or academic_changed or photo_changed:
+            user.is_activated = True
             user.save()
-
-        user.is_activated = True
 
     def _update_user_name(self, user: User, dto: MicrosoftUserDTO) -> bool:
         user_changed = False
