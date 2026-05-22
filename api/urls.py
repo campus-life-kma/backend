@@ -3,6 +3,14 @@ from django.urls import path
 
 from api.views.announcements_view import ActiveAnnouncementsView, AnnouncementCreateView, AnnouncementReadView
 from api.views.auth_view import DevLoginView, LoginView, CustomTokenRefreshView
+from api.views.bookings_view import (
+    BookingCancelView,
+    BookingCreateView,
+    MyBookingsView,
+    ResourceBlockView,
+    ResourceScheduleView,
+    ResourceUnblockView,
+)
 from api.views.locations_view import FloorsView, FloorMapDataView
 from api.views.presence_view import PresenceCheckInView, PresenceGoHomeView
 from api.views.socials_view import (
@@ -36,6 +44,12 @@ urlpatterns = [
     path("announcements/active/", ActiveAnnouncementsView.as_view(), name="announcements-active"),
     path("announcements/<int:announcement_id>/read/", AnnouncementReadView.as_view(), name="announcement-read"),
     path("announcements/", AnnouncementCreateView.as_view(), name="announcement-create"),
+    path("resources/<int:resource_id>/schedule/", ResourceScheduleView.as_view(), name="resource-schedule"),
+    path("resources/<int:resource_id>/block/", ResourceBlockView.as_view(), name="resource-block"),
+    path("resources/<int:resource_id>/unblock/", ResourceUnblockView.as_view(), name="resource-unblock"),
+    path("bookings/", BookingCreateView.as_view(), name="booking-create"),
+    path("bookings/me/", MyBookingsView.as_view(), name="bookings-me"),
+    path("bookings/<int:booking_id>/cancel/", BookingCancelView.as_view(), name="booking-cancel"),
 ]
 
 if settings.DEBUG:
