@@ -11,21 +11,19 @@ class AnnouncementEmailService:
             return 0
 
         subject = f"Campus Life: {announcement.title}"
-        messages = [
-            EmailMultiAlternatives(
-                subject=subject,
-                body=self.build_body(announcement, user),
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                to=[user.email],
-            )
-            for user in recipients
-        ]
+        recipient_emails = [user.email for user in recipients]
+        message = EmailMultiAlternatives(
+            subject=subject,
+            body=self.build_body(announcement),
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            to=recipient_emails,
+        )
 
         connection = get_connection(fail_silently=False)
-        return connection.send_messages(messages)
+        return connection.send_messages([message])
 
     def get_recipients(self, announcement):
-        users = User.objects.filter(is_active=True).exclude(email="")
+        users = User.objects.filter(is_active=True, is_activated=True).exclude(email="")
         target_type = announcement.target_type.type
 
         if target_type == "GLOBAL":
@@ -42,11 +40,9 @@ class AnnouncementEmailService:
 
         return User.objects.none()
 
-    def build_body(self, announcement, user):
-        greeting = user.full_name or user.email
-
+    def build_body(self, announcement):
         return (
-            f"Вітаємо, {greeting}!\n\n"
+            "Вітаємо!\n\n"
             f"{announcement.message}\n\n"
             "Це оголошення надіслано через систему Campus Life.\n"
             "Якщо воно більше не актуальне для вас, відкрийте додаток і натисніть «Зрозуміло»."

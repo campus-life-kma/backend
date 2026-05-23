@@ -137,6 +137,11 @@ class AnnouncementCreateView(APIView):
     @extend_schema(
         tags=["Оголошення"],
         summary="Створення оголошення",
+        description=(
+            "Створює оголошення в системі та надсилає один email-лист усім отримувачам, які відповідають "
+            "обраному target_type. У email-розсилку потрапляють лише користувачі з is_active=True, "
+            "is_activated=True та непорожньою email-адресою."
+        ),
         request=AnnouncementCreateSerializer,
         examples=[
             OpenApiExample(

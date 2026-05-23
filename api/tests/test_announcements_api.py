@@ -180,8 +180,8 @@ class AnnouncementsApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["target_type"], "FLOOR")
         self.assertEqual(response.data["target_floor_id"], self.floor.id)
-        self.assertEqual(len(mail.outbox), 2)
-        recipients = {message.to[0] for message in mail.outbox}
+        self.assertEqual(len(mail.outbox), 1)
+        recipients = set(mail.outbox[0].to)
         self.assertEqual(recipients, {self.user.email, self.moderator.email})
 
     def test_moderator_cannot_create_global_announcement(self):
@@ -265,16 +265,17 @@ class AnnouncementsApiTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        recipients = {message.to[0] for message in mail.outbox}
+        self.assertEqual(len(mail.outbox), 1)
+        recipients = set(mail.outbox[0].to)
         self.assertTrue(
             {
                 self.user.email,
                 self.other_user.email,
                 self.moderator.email,
                 self.admin.email,
-                inactive_user.email,
             }
             <= recipients
         )
+        self.assertNotIn(inactive_user.email, recipients)
         self.assertNotIn(disabled_user.email, recipients)
-        self.assertTrue(all("Campus Life: Глобальна розсилка" == message.subject for message in mail.outbox))
+        self.assertEqual(mail.outbox[0].subject, "Campus Life: Глобальна розсилка")
