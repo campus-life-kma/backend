@@ -221,7 +221,37 @@ class SocialEventJoinView(APIView):
             )
         ],
         responses={
-            200: OpenApiResponse(response=SocialEventDetailSerializer, description="Користувача додано до події."),
+            200: OpenApiResponse(
+                response=SocialEventDetailSerializer,
+                description="Користувача додано до події.",
+                examples=[
+                    OpenApiExample(
+                        "Користувача додано до події",
+                        value={
+                            "type": "event",
+                            "id": 12,
+                            "title": "Граємо в Мафію",
+                            "description": "Збираємось у спільній кімнаті.",
+                            "start_time": "2026-05-23T20:00:00Z",
+                            "end_time": "2026-05-23T22:00:00Z",
+                            "max_person": 8,
+                            "is_faculty_only": False,
+                            "is_major_only": False,
+                            "creator": {
+                                "id": "0c3a2cb7-7ef5-4c0f-9d36-1b7f0eb05c74",
+                                "display_name": "Богдан Змеул",
+                                "photo": "/media/avatars/bogdan.jpg",
+                            },
+                            "participants_count": 4,
+                            "room_id": 5,
+                            "room_name": "Спільна кімната",
+                            "floor_id": 3,
+                            "custom_location": None,
+                        },
+                        response_only=True,
+                    )
+                ],
+            ),
             400: OpenApiResponse(
                 response=dict,
                 description="Приєднатися до події неможливо.",
@@ -292,7 +322,37 @@ class SocialEventLeaveView(APIView):
             )
         ],
         responses={
-            200: OpenApiResponse(response=SocialEventDetailSerializer, description="Користувача прибрано з події."),
+            200: OpenApiResponse(
+                response=SocialEventDetailSerializer,
+                description="Користувача прибрано з події.",
+                examples=[
+                    OpenApiExample(
+                        "Користувача прибрано з події",
+                        value={
+                            "type": "event",
+                            "id": 12,
+                            "title": "Граємо в Мафію",
+                            "description": "Збираємось у спільній кімнаті.",
+                            "start_time": "2026-05-23T20:00:00Z",
+                            "end_time": "2026-05-23T22:00:00Z",
+                            "max_person": 8,
+                            "is_faculty_only": False,
+                            "is_major_only": False,
+                            "creator": {
+                                "id": "0c3a2cb7-7ef5-4c0f-9d36-1b7f0eb05c74",
+                                "display_name": "Богдан Змеул",
+                                "photo": "/media/avatars/bogdan.jpg",
+                            },
+                            "participants_count": 3,
+                            "room_id": 5,
+                            "room_name": "Спільна кімната",
+                            "floor_id": 3,
+                            "custom_location": None,
+                        },
+                        response_only=True,
+                    )
+                ],
+            ),
             401: OpenApiResponse(description="Користувач не авторизований."),
             404: OpenApiResponse(
                 response=dict,
@@ -481,6 +541,25 @@ class SocialSharingRequestCreateView(APIView):
             201: OpenApiResponse(
                 response=SocialSharingRequestDetailSerializer,
                 description="Запит на шеринг успішно створено.",
+                examples=[
+                    OpenApiExample(
+                        "Запит на шеринг створено",
+                        value={
+                            "type": "sharing_request",
+                            "id": 7,
+                            "title": "Позичте зарядку для ноутбука на дві години",
+                            "creator": {
+                                "id": "0c3a2cb7-7ef5-4c0f-9d36-1b7f0eb05c74",
+                                "display_name": "Богдан Змеул",
+                                "photo": "/media/avatars/bogdan.jpg",
+                            },
+                            "status": "ACTIVE",
+                            "created_at": "2026-05-23T18:10:00Z",
+                            "floor_id": 3,
+                        },
+                        response_only=True,
+                    )
+                ],
             ),
             400: OpenApiResponse(
                 response=dict,
@@ -542,6 +621,25 @@ class SocialSharingRequestDoneView(APIView):
             200: OpenApiResponse(
                 response=SocialSharingRequestDetailSerializer,
                 description="Запит на шеринг завершено.",
+                examples=[
+                    OpenApiExample(
+                        "Запит на шеринг завершено",
+                        value={
+                            "type": "sharing_request",
+                            "id": 7,
+                            "title": "Позичте зарядку для ноутбука на дві години",
+                            "creator": {
+                                "id": "0c3a2cb7-7ef5-4c0f-9d36-1b7f0eb05c74",
+                                "display_name": "Богдан Змеул",
+                                "photo": "/media/avatars/bogdan.jpg",
+                            },
+                            "status": "COMPLETED",
+                            "created_at": "2026-05-23T18:10:00Z",
+                            "floor_id": 3,
+                        },
+                        response_only=True,
+                    )
+                ],
             ),
             401: OpenApiResponse(description="Користувач не авторизований."),
             403: OpenApiResponse(
@@ -610,6 +708,25 @@ class SocialSharingRequestDeleteView(APIView):
             200: OpenApiResponse(
                 response=SocialSharingRequestDetailSerializer,
                 description="Запит на шеринг скасовано.",
+                examples=[
+                    OpenApiExample(
+                        "Запит на шеринг скасовано",
+                        value={
+                            "type": "sharing_request",
+                            "id": 7,
+                            "title": "Позичте зарядку для ноутбука на дві години",
+                            "creator": {
+                                "id": "0c3a2cb7-7ef5-4c0f-9d36-1b7f0eb05c74",
+                                "display_name": "Богдан Змеул",
+                                "photo": "/media/avatars/bogdan.jpg",
+                            },
+                            "status": "CANCELLED",
+                            "created_at": "2026-05-23T18:10:00Z",
+                            "floor_id": 3,
+                        },
+                        response_only=True,
+                    )
+                ],
             ),
             401: OpenApiResponse(description="Користувач не авторизований."),
             403: OpenApiResponse(
