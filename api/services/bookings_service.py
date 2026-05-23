@@ -69,8 +69,13 @@ class BookingsService:
 
     def get_my_bookings(self, user):
         active_status = self.get_status("ACTIVE")
+        cancelled_status = self.get_status("CANCELLED")
         return (
-            Booking.objects.filter(user=user, status=active_status, end_time__gte=timezone.now())
+            Booking.objects.filter(
+                user=user,
+                status__in=[active_status, cancelled_status],
+                end_time__gte=timezone.now(),
+            )
             .select_related("user", "resource", "resource__room", "resource__room__floor", "status")
             .order_by("start_time")
         )

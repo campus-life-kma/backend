@@ -195,14 +195,14 @@ class MyBookingsView(APIView):
 
     @extend_schema(
         tags=["Бронювання"],
-        summary="Отримання моїх активних бронювань",
+        summary="Отримання моїх актуальних бронювань",
         responses={
             200: OpenApiResponse(
                 response=BookingSerializer(many=True),
-                description="Майбутні та активні бронювання користувача отримано.",
+                description="Майбутні та поточні активні або скасовані бронювання користувача отримано.",
                 examples=[
                     OpenApiExample(
-                        "Мої активні бронювання",
+                        "Мої актуальні бронювання",
                         value=[
                             {
                                 "id": 17,
@@ -219,7 +219,23 @@ class MyBookingsView(APIView):
                                 "start_time": "2026-05-23T18:00:00Z",
                                 "end_time": "2026-05-23T19:00:00Z",
                                 "status": "ACTIVE",
-                            }
+                            },
+                            {
+                                "id": 18,
+                                "user": {
+                                    "id": "0c3a2cb7-7ef5-4c0f-9d36-1b7f0eb05c74",
+                                    "display_name": "Богдан Змеул",
+                                    "photo": "/media/avatars/bogdan.jpg",
+                                },
+                                "resource_id": 1,
+                                "resource_name": "Пральна машина 1",
+                                "room_id": 5,
+                                "room_name": "Пральня",
+                                "floor_id": 3,
+                                "start_time": "2026-05-24T11:00:00Z",
+                                "end_time": "2026-05-24T12:00:00Z",
+                                "status": "CANCELLED",
+                            },
                         ],
                         response_only=True,
                     )

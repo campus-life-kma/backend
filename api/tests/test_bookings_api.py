@@ -227,16 +227,28 @@ class BookingsApiTests(APITestCase):
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["booking_id"], active_booking.id)
 
-    def test_my_bookings_returns_only_my_future_active_bookings(self):
-        my_booking = self.create_booking()
+    def test_my_bookings_returns_my_current_active_and_cancelled_bookings(self):
+        active_booking = self.create_booking()
+        cancelled_booking = self.create_booking(
+            status_obj=self.cancelled_status,
+            start_time=timezone.now() + timedelta(days=1),
+            end_time=timezone.now() + timedelta(days=1, hours=1),
+        )
         self.create_booking(user=self.other_user)
-        self.create_booking(status_obj=self.cancelled_status)
+        self.create_booking(status_obj=self.completed_status)
+        self.create_booking(
+            status_obj=self.cancelled_status,
+            start_time=timezone.now() - timedelta(hours=2),
+            end_time=timezone.now() - timedelta(hours=1),
+        )
 
         response = self.client.get(reverse("bookings-me"))
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]["id"], my_booking.id)
+        booking_ids = {item["id"] for item in response.data}
+        self.assertEqual(len(response.data), 2)
+        self.assertIn(active_booking.id, booking_ids)
+        self.assertIn(cancelled_booking.id, booking_ids)
 
     def test_resident_can_cancel_own_booking(self):
         booking = self.create_booking()
