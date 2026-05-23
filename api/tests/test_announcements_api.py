@@ -254,7 +254,7 @@ class AnnouncementsApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(len(mail.outbox), 0)
 
-    def test_admin_global_announcement_sends_email_to_active_users(self):
+    def test_admin_global_announcement_sends_email_to_activated_users(self):
         inactive_user = User.objects.create(
             email="inactive-announcement-user@ukma.edu.ua",
             full_name="Неактивований Користувач",
@@ -289,9 +289,9 @@ class AnnouncementsApiTests(APITestCase):
                 self.other_user.email,
                 self.moderator.email,
                 self.admin.email,
+                disabled_user.email,
             }
             <= recipients
         )
         self.assertNotIn(inactive_user.email, recipients)
-        self.assertNotIn(disabled_user.email, recipients)
         self.assertEqual(mail.outbox[0].subject, "Campus Life: Глобальна розсилка")

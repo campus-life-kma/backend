@@ -180,8 +180,7 @@ class AnnouncementCreateView(APIView):
         description=(
             "Створює оголошення в системі. Після успішного запису в базу email-розсилка запускається "
             "асинхронно одним листом усім отримувачам, які відповідають обраному target_type. "
-            "У email-розсилку потрапляють лише користувачі з is_active=True, is_activated=True "
-            "та непорожньою email-адресою."
+            "У email-розсилку потрапляють лише користувачі з is_activated=True та непорожньою email-адресою."
         ),
         request=AnnouncementCreateSerializer,
         examples=[

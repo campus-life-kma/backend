@@ -49,7 +49,7 @@ class AnnouncementEmailService:
         return connection.send_messages([message])
 
     def get_recipients(self, announcement):
-        users = User.objects.filter(is_active=True, is_activated=True).exclude(email="")
+        users = User.objects.filter(is_activated=True).exclude(email="")
         target_type = announcement.target_type.type
 
         if target_type == "GLOBAL":
