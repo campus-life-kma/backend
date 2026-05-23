@@ -1,5 +1,5 @@
 from django.db import transaction
-from django.db.models import F, Q, Value
+from django.db.models import Count, F, Q, Value
 from django.db.models.fields import CharField
 from django.utils import timezone
 
@@ -85,14 +85,19 @@ class SocialsService:
     def resolve_feed_items(self, rows):
         event_ids = [row["item_id"] for row in rows if row["item_type"] == "event"]
         sharing_request_ids = [row["item_id"] for row in rows if row["item_type"] == "sharing_request"]
-        events = SocialEvent.objects.select_related(
-            "creator",
-            "creator__major",
-            "creator__major__faculty",
-            "room",
-            "room__floor",
-            "floor",
-        ).in_bulk(event_ids)
+        events = (
+            SocialEvent.objects.select_related(
+                "creator",
+                "creator__major",
+                "creator__major__faculty",
+                "room",
+                "room__floor",
+                "floor",
+            )
+            .prefetch_related("participants")
+            .annotate(participants_count=Count("participants"))
+            .in_bulk(event_ids)
+        )
         sharing_requests = SocialSharingRequest.objects.select_related(
             "creator",
             "creator__room",
