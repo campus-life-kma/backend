@@ -25,6 +25,10 @@ class AnnouncementValidationError(AnnouncementError):
     default_detail = "Оголошення неможливо обробити."
 
 
+class AnnouncementEmailSendError(AnnouncementError):
+    default_detail = "Не вдалося надіслати email-сповіщення отримувачам."
+
+
 class AnnouncementsService:
     def get_active_announcements(self, user):
         now = timezone.now()
@@ -78,13 +82,11 @@ class AnnouncementsService:
             announcement = Announcement.objects.create(creator=user, **validated_data)
             if target_users:
                 announcement.target_users.set(target_users)
-            email_service = AnnouncementEmailService()
-            announcement_id = announcement.id
 
-            def send_email_after_commit():
-                email_service.send_announcement_async(announcement_id)
-
-            transaction.on_commit(send_email_after_commit)
+            try:
+                AnnouncementEmailService().send_announcement(announcement)
+            except Exception as exc:
+                raise AnnouncementEmailSendError("Не вдалося надіслати email-сповіщення отримувачам.") from exc
 
         return announcement
 

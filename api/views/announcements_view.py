@@ -12,6 +12,7 @@ from api.serializers.announcements_serializer import (
     TargetTypeSerializer,
 )
 from api.services.announcements_service import (
+    AnnouncementEmailSendError,
     AnnouncementError,
     AnnouncementNotFoundError,
     AnnouncementPermissionDeniedError,
@@ -20,6 +21,9 @@ from api.services.announcements_service import (
 
 
 def get_announcement_error_status(error):
+    if isinstance(error, AnnouncementEmailSendError):
+        return status.HTTP_500_INTERNAL_SERVER_ERROR
+
     if isinstance(error, AnnouncementNotFoundError):
         return status.HTTP_404_NOT_FOUND
 
@@ -178,8 +182,9 @@ class AnnouncementCreateView(APIView):
         tags=["Оголошення"],
         summary="Створення оголошення",
         description=(
-            "Створює оголошення в системі. Після успішного запису в базу email-розсилка запускається "
-            "асинхронно одним листом усім отримувачам, які відповідають обраному target_type. "
+            "Створює оголошення в системі та синхронно надсилає один email-лист усім отримувачам, "
+            "які відповідають обраному target_type. Створення оголошення і надсилання листа виконуються "
+            "в одній DB-транзакції: якщо email не вдалося надіслати, оголошення не зберігається. "
             "У email-розсилку потрапляють лише користувачі з is_activated=True та непорожньою email-адресою."
         ),
         request=AnnouncementCreateSerializer,
@@ -258,6 +263,17 @@ class AnnouncementCreateView(APIView):
                 ],
             ),
             401: OpenApiResponse(description="Користувач не авторизований."),
+            500: OpenApiResponse(
+                response=dict,
+                description="Не вдалося надіслати email-сповіщення отримувачам, тому оголошення не збережено.",
+                examples=[
+                    OpenApiExample(
+                        "Email-розсилку не надіслано",
+                        value={"detail": "Не вдалося надіслати email-сповіщення отримувачам."},
+                        response_only=True,
+                    )
+                ],
+            ),
             403: OpenApiResponse(
                 response=dict,
                 description="Недостатньо прав для створення оголошення.",

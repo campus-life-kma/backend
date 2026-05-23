@@ -1,36 +1,10 @@
-import logging
-from threading import Thread
-
 from django.conf import settings
 from django.core.mail import EmailMultiAlternatives, get_connection
-from django.db import close_old_connections
 
-from api.models import Announcement, User
-
-logger = logging.getLogger(__name__)
+from api.models import User
 
 
 class AnnouncementEmailService:
-    def send_announcement_async(self, announcement_id):
-        thread = Thread(target=self.send_announcement_by_id, args=(announcement_id,), daemon=True)
-        thread.start()
-        return thread
-
-    def send_announcement_by_id(self, announcement_id):
-        close_old_connections()
-        try:
-            announcement = (
-                Announcement.objects.select_related("target_type", "target_floor", "target_room")
-                .prefetch_related("target_users")
-                .get(id=announcement_id)
-            )
-            return self.send_announcement(announcement)
-        except Exception:
-            logger.exception("Не вдалося надіслати email-сповіщення для оголошення %s.", announcement_id)
-            return 0
-        finally:
-            close_old_connections()
-
     def send_announcement(self, announcement):
         recipients = list(self.get_recipients(announcement))
         if not recipients:

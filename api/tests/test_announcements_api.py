@@ -9,7 +9,6 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from api.models import Announcement, AnnouncementRead, Dormitory, Floor, Role, Room, RoomType, TargetType, User
-from api.services.announcement_email_service import AnnouncementEmailService
 
 
 @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
@@ -84,19 +83,6 @@ class AnnouncementsApiTests(APITestCase):
         }
         data.update(kwargs)
         return Announcement.objects.create(**data)
-
-    def post_announcement_with_email(self, data):
-        def send_now(service, announcement_id):
-            announcement = (
-                Announcement.objects.select_related("target_type", "target_floor", "target_room")
-                .prefetch_related("target_users")
-                .get(id=announcement_id)
-            )
-            return service.send_announcement(announcement)
-
-        with patch.object(AnnouncementEmailService, "send_announcement_async", send_now):
-            with self.captureOnCommitCallbacks(execute=True):
-                return self.client.post(reverse("announcement-create"), data, format="json")
 
     def test_active_announcements_include_matching_targets(self):
         global_announcement = self.create_announcement(title="Глобальне")
@@ -188,13 +174,15 @@ class AnnouncementsApiTests(APITestCase):
     def test_moderator_can_create_floor_announcement_for_own_floor(self):
         self.client.force_authenticate(user=self.moderator)
 
-        response = self.post_announcement_with_email(
+        response = self.client.post(
+            reverse("announcement-create"),
             {
                 "title": "Прибирання",
                 "message": "Сьогодні прибирання кухні",
                 "target_type": "FLOOR",
                 "target_floor": self.floor.id,
-            }
+            },
+            format="json",
         )
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -222,13 +210,15 @@ class AnnouncementsApiTests(APITestCase):
     def test_admin_can_create_specific_users_announcement(self):
         self.client.force_authenticate(user=self.admin)
 
-        response = self.post_announcement_with_email(
+        response = self.client.post(
+            reverse("announcement-create"),
             {
                 "title": "Особисте",
                 "message": "Повідомлення для конкретного мешканця",
                 "target_type": "SPECIFIC_USERS",
                 "target_users": [str(self.user.id)],
-            }
+            },
+            format="json",
         )
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -272,12 +262,14 @@ class AnnouncementsApiTests(APITestCase):
         )
         self.client.force_authenticate(user=self.admin)
 
-        response = self.post_announcement_with_email(
+        response = self.client.post(
+            reverse("announcement-create"),
             {
                 "title": "Глобальна розсилка",
                 "message": "Повідомлення для всіх активованих користувачів",
                 "target_type": "GLOBAL",
-            }
+            },
+            format="json",
         )
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -295,3 +287,21 @@ class AnnouncementsApiTests(APITestCase):
         )
         self.assertNotIn(inactive_user.email, recipients)
         self.assertEqual(mail.outbox[0].subject, "Campus Life: Глобальна розсилка")
+
+    def test_create_announcement_rolls_back_when_email_fails(self):
+        self.client.force_authenticate(user=self.admin)
+
+        with patch("api.services.announcements_service.AnnouncementEmailService.send_announcement") as send_mock:
+            send_mock.side_effect = RuntimeError("SMTP недоступний")
+            response = self.client.post(
+                reverse("announcement-create"),
+                {
+                    "title": "Помилка розсилки",
+                    "message": "Це оголошення не має зберегтися",
+                    "target_type": "GLOBAL",
+                },
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
+        self.assertFalse(Announcement.objects.filter(title="Помилка розсилки").exists())
