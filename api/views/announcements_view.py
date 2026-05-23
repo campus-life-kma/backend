@@ -5,18 +5,65 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from api.serializers.announcements_serializer import AnnouncementCreateSerializer, AnnouncementSerializer
-from api.services.announcements_service import AnnouncementsService
+from api.models import TargetType
+from api.serializers.announcements_serializer import (
+    AnnouncementCreateSerializer,
+    AnnouncementSerializer,
+    TargetTypeSerializer,
+)
+from api.services.announcements_service import (
+    AnnouncementEmailSendError,
+    AnnouncementError,
+    AnnouncementNotFoundError,
+    AnnouncementPermissionDeniedError,
+    AnnouncementsService,
+)
 
 
-def get_announcement_error_status(error_message):
-    if "не знайдено" in error_message:
+def get_announcement_error_status(error):
+    if isinstance(error, AnnouncementEmailSendError):
+        return status.HTTP_500_INTERNAL_SERVER_ERROR
+
+    if isinstance(error, AnnouncementNotFoundError):
         return status.HTTP_404_NOT_FOUND
 
-    if "не призначене" in error_message or "немає прав" in error_message or "Голова поверху" in error_message:
+    if isinstance(error, AnnouncementPermissionDeniedError):
         return status.HTTP_403_FORBIDDEN
 
     return status.HTTP_400_BAD_REQUEST
+
+
+class AnnouncementTargetTypesView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=["Оголошення"],
+        summary="Отримання типів аудиторії оголошень",
+        description="Повертає доступні значення target_type для створення оголошень.",
+        responses={
+            200: OpenApiResponse(
+                response=TargetTypeSerializer(many=True),
+                description="Типи аудиторії оголошень отримано.",
+                examples=[
+                    OpenApiExample(
+                        "Типи аудиторії",
+                        value=[
+                            {"id": 1, "type": "GLOBAL"},
+                            {"id": 2, "type": "FLOOR"},
+                            {"id": 3, "type": "ROOM"},
+                            {"id": 4, "type": "SPECIFIC_USERS"},
+                        ],
+                        response_only=True,
+                    )
+                ],
+            ),
+            401: OpenApiResponse(description="Користувач не авторизований."),
+        },
+    )
+    def get(self, request):
+        target_types = TargetType.objects.order_by("id")
+        serializer = TargetTypeSerializer(target_types, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class ActiveAnnouncementsView(APIView):
@@ -122,8 +169,8 @@ class AnnouncementReadView(APIView):
 
         try:
             service.mark_as_read(request.user, announcement_id)
-        except ValueError as exc:
-            return Response({"detail": str(exc)}, status=get_announcement_error_status(str(exc)))
+        except AnnouncementError as exc:
+            return Response({"detail": str(exc)}, status=get_announcement_error_status(exc))
 
         return Response({"detail": "Оголошення позначено як прочитане."}, status=status.HTTP_200_OK)
 
@@ -134,6 +181,12 @@ class AnnouncementCreateView(APIView):
     @extend_schema(
         tags=["Оголошення"],
         summary="Створення оголошення",
+        description=(
+            "Створює оголошення в системі та синхронно надсилає один email-лист усім отримувачам, "
+            "які відповідають обраному target_type. Створення оголошення і надсилання листа виконуються "
+            "в одній DB-транзакції: якщо email не вдалося надіслати, оголошення не зберігається. "
+            "У email-розсилку потрапляють лише користувачі з is_activated=True та непорожньою email-адресою."
+        ),
         request=AnnouncementCreateSerializer,
         examples=[
             OpenApiExample(
@@ -168,6 +221,16 @@ class AnnouncementCreateView(APIView):
                 },
                 request_only=True,
             ),
+            OpenApiExample(
+                "Оголошення для кімнати",
+                value={
+                    "title": "Перевірка кімнати",
+                    "message": "Просимо мешканців кімнати бути присутніми о 18:00.",
+                    "target_type": "ROOM",
+                    "target_room": 12,
+                },
+                request_only=True,
+            ),
         ],
         responses={
             201: OpenApiResponse(response=AnnouncementSerializer, description="Оголошення створено."),
@@ -181,6 +244,18 @@ class AnnouncementCreateView(APIView):
                         response_only=True,
                     ),
                     OpenApiExample(
+                        "Для кімнати не вказано target_room",
+                        value={"target_room": ["Для оголошення на кімнату необхідно обрати кімнату."]},
+                        response_only=True,
+                    ),
+                    OpenApiExample(
+                        "Для адресного оголошення не вказано target_users",
+                        value={
+                            "target_users": ["Для адресного оголошення необхідно обрати хоча б одного користувача."]
+                        },
+                        response_only=True,
+                    ),
+                    OpenApiExample(
                         "Дата завершення в минулому",
                         value={"detail": "Час завершення оголошення має бути в майбутньому."},
                         response_only=True,
@@ -188,6 +263,17 @@ class AnnouncementCreateView(APIView):
                 ],
             ),
             401: OpenApiResponse(description="Користувач не авторизований."),
+            500: OpenApiResponse(
+                response=dict,
+                description="Не вдалося надіслати email-сповіщення отримувачам, тому оголошення не збережено.",
+                examples=[
+                    OpenApiExample(
+                        "Email-розсилку не надіслано",
+                        value={"detail": "Не вдалося надіслати email-сповіщення отримувачам."},
+                        response_only=True,
+                    )
+                ],
+            ),
             403: OpenApiResponse(
                 response=dict,
                 description="Недостатньо прав для створення оголошення.",
@@ -214,8 +300,8 @@ class AnnouncementCreateView(APIView):
 
         try:
             announcement = service.create_announcement(request.user, serializer.validated_data)
-        except ValueError as exc:
-            return Response({"detail": str(exc)}, status=get_announcement_error_status(str(exc)))
+        except AnnouncementError as exc:
+            return Response({"detail": str(exc)}, status=get_announcement_error_status(exc))
 
         response_serializer = AnnouncementSerializer(announcement, context={"request": request})
         return Response(response_serializer.data, status=status.HTTP_201_CREATED)
