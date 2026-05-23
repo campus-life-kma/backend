@@ -191,8 +191,17 @@ class AnnouncementCreateView(APIView):
                 ],
             ),
             401: OpenApiResponse(description="Користувач не авторизований."),
-            403: OpenApiResponse(description="Недостатньо прав для створення оголошення."),
-            500: OpenApiResponse(description="Не вдалося надіслати email-сповіщення отримувачам."),
+            500: OpenApiResponse(
+                response=dict,
+                description="Не вдалося надіслати email-сповіщення отримувачам.",
+                examples=[
+                    OpenApiExample(
+                        "Email-розсилку не надіслано",
+                        value={"detail": "Оголошення створено, але не вдалося надіслати email-сповіщення."},
+                        response_only=True,
+                    )
+                ],
+            ),
             403: OpenApiResponse(
                 response=dict,
                 description="Недостатньо прав для створення оголошення.",

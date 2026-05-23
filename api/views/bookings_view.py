@@ -1,4 +1,5 @@
-from drf_spectacular.utils import OpenApiExample, OpenApiResponse, extend_schema
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiExample, OpenApiParameter, OpenApiResponse, extend_schema
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -29,13 +30,52 @@ class ResourceScheduleView(APIView):
     @extend_schema(
         tags=["Бронювання"],
         summary="Отримання розкладу ресурсу",
+        parameters=[
+            OpenApiParameter(
+                name="resource_id",
+                type=OpenApiTypes.INT,
+                location="path",
+                required=True,
+                description="ID ресурсу, для якого потрібно отримати зайняті слоти на сьогодні та завтра.",
+            )
+        ],
         responses={
             200: OpenApiResponse(
                 response=ResourceScheduleSerializer(many=True),
                 description="Зайняті слоти ресурсу на сьогодні та завтра отримано.",
+                examples=[
+                    OpenApiExample(
+                        "Зайняті слоти ресурсу",
+                        value=[
+                            {
+                                "booking_id": 17,
+                                "start_time": "2026-05-23T18:00:00Z",
+                                "end_time": "2026-05-23T19:00:00Z",
+                                "status": "ACTIVE",
+                            },
+                            {
+                                "booking_id": 18,
+                                "start_time": "2026-05-24T09:00:00Z",
+                                "end_time": "2026-05-24T10:00:00Z",
+                                "status": "ACTIVE",
+                            },
+                        ],
+                        response_only=True,
+                    )
+                ],
             ),
             401: OpenApiResponse(description="Користувач не авторизований."),
-            404: OpenApiResponse(description="Ресурс не знайдено."),
+            404: OpenApiResponse(
+                response=dict,
+                description="Ресурс не знайдено.",
+                examples=[
+                    OpenApiExample(
+                        "Ресурс не знайдено",
+                        value={"detail": "Ресурс з таким id не знайдено."},
+                        response_only=True,
+                    )
+                ],
+            ),
         },
     )
     def get(self, request, resource_id):
@@ -57,11 +97,82 @@ class BookingCreateView(APIView):
         tags=["Бронювання"],
         summary="Створення бронювання",
         request=BookingCreateSerializer,
+        examples=[
+            OpenApiExample(
+                "Бронювання пральної машини",
+                value={
+                    "resource": 1,
+                    "start_time": "2026-05-23T18:00:00Z",
+                    "end_time": "2026-05-23T19:00:00Z",
+                },
+                request_only=True,
+            )
+        ],
         responses={
-            201: OpenApiResponse(response=BookingSerializer, description="Бронювання успішно створено."),
-            400: OpenApiResponse(description="Бронювання неможливо створити."),
+            201: OpenApiResponse(
+                response=BookingSerializer,
+                description="Бронювання успішно створено.",
+                examples=[
+                    OpenApiExample(
+                        "Бронювання створено",
+                        value={
+                            "id": 17,
+                            "user": {
+                                "id": "0c3a2cb7-7ef5-4c0f-9d36-1b7f0eb05c74",
+                                "display_name": "Богдан Змеул",
+                                "photo": "/media/avatars/bogdan.jpg",
+                            },
+                            "resource_id": 1,
+                            "resource_name": "Пральна машина 1",
+                            "room_id": 5,
+                            "room_name": "Пральня",
+                            "floor_id": 3,
+                            "start_time": "2026-05-23T18:00:00Z",
+                            "end_time": "2026-05-23T19:00:00Z",
+                            "status": "ACTIVE",
+                        },
+                        response_only=True,
+                    )
+                ],
+            ),
+            400: OpenApiResponse(
+                response=dict,
+                description="Бронювання неможливо створити.",
+                examples=[
+                    OpenApiExample(
+                        "Ресурс зайнятий",
+                        value={"detail": "На цей час ресурс уже повністю зайнятий."},
+                        response_only=True,
+                    ),
+                    OpenApiExample(
+                        "Ресурс заблокований",
+                        value={"detail": "Цей ресурс заблокований і недоступний для бронювання."},
+                        response_only=True,
+                    ),
+                    OpenApiExample(
+                        "Час у минулому",
+                        value={"detail": "Не можна створити бронювання в минулому."},
+                        response_only=True,
+                    ),
+                    OpenApiExample(
+                        "Некоректний час завершення",
+                        value={"end_time": ["Час завершення має бути пізніше часу початку."]},
+                        response_only=True,
+                    ),
+                ],
+            ),
             401: OpenApiResponse(description="Користувач не авторизований."),
-            404: OpenApiResponse(description="Ресурс не знайдено."),
+            404: OpenApiResponse(
+                response=dict,
+                description="Ресурс не знайдено.",
+                examples=[
+                    OpenApiExample(
+                        "Ресурс не знайдено",
+                        value={"detail": "Ресурс з таким id не знайдено."},
+                        response_only=True,
+                    )
+                ],
+            ),
         },
     )
     def post(self, request):
@@ -89,6 +200,30 @@ class MyBookingsView(APIView):
             200: OpenApiResponse(
                 response=BookingSerializer(many=True),
                 description="Майбутні та активні бронювання користувача отримано.",
+                examples=[
+                    OpenApiExample(
+                        "Мої активні бронювання",
+                        value=[
+                            {
+                                "id": 17,
+                                "user": {
+                                    "id": "0c3a2cb7-7ef5-4c0f-9d36-1b7f0eb05c74",
+                                    "display_name": "Богдан Змеул",
+                                    "photo": "/media/avatars/bogdan.jpg",
+                                },
+                                "resource_id": 1,
+                                "resource_name": "Пральна машина 1",
+                                "room_id": 5,
+                                "room_name": "Пральня",
+                                "floor_id": 3,
+                                "start_time": "2026-05-23T18:00:00Z",
+                                "end_time": "2026-05-23T19:00:00Z",
+                                "status": "ACTIVE",
+                            }
+                        ],
+                        response_only=True,
+                    )
+                ],
             ),
             401: OpenApiResponse(description="Користувач не авторизований."),
         },
@@ -107,11 +242,65 @@ class BookingCancelView(APIView):
         tags=["Бронювання"],
         summary="Скасування бронювання",
         request=None,
+        parameters=[
+            OpenApiParameter(
+                name="booking_id",
+                type=OpenApiTypes.INT,
+                location="path",
+                required=True,
+                description="ID бронювання, яке потрібно скасувати.",
+            )
+        ],
         responses={
-            200: OpenApiResponse(response=BookingSerializer, description="Бронювання скасовано."),
+            200: OpenApiResponse(
+                response=BookingSerializer,
+                description="Бронювання скасовано.",
+                examples=[
+                    OpenApiExample(
+                        "Бронювання скасовано",
+                        value={
+                            "id": 17,
+                            "user": {
+                                "id": "0c3a2cb7-7ef5-4c0f-9d36-1b7f0eb05c74",
+                                "display_name": "Богдан Змеул",
+                                "photo": "/media/avatars/bogdan.jpg",
+                            },
+                            "resource_id": 1,
+                            "resource_name": "Пральна машина 1",
+                            "room_id": 5,
+                            "room_name": "Пральня",
+                            "floor_id": 3,
+                            "start_time": "2026-05-23T18:00:00Z",
+                            "end_time": "2026-05-23T19:00:00Z",
+                            "status": "CANCELLED",
+                        },
+                        response_only=True,
+                    )
+                ],
+            ),
             401: OpenApiResponse(description="Користувач не авторизований."),
-            403: OpenApiResponse(description="Недостатньо прав для скасування бронювання."),
-            404: OpenApiResponse(description="Бронювання не знайдено."),
+            403: OpenApiResponse(
+                response=dict,
+                description="Недостатньо прав для скасування бронювання.",
+                examples=[
+                    OpenApiExample(
+                        "Недостатньо прав",
+                        value={"detail": "У вас немає прав для скасування цього бронювання."},
+                        response_only=True,
+                    )
+                ],
+            ),
+            404: OpenApiResponse(
+                response=dict,
+                description="Бронювання не знайдено.",
+                examples=[
+                    OpenApiExample(
+                        "Бронювання не знайдено",
+                        value={"detail": "Бронювання з таким id не знайдено."},
+                        response_only=True,
+                    )
+                ],
+            ),
         },
     )
     def patch(self, request, booking_id):
@@ -133,11 +322,60 @@ class ResourceBlockView(APIView):
         tags=["Бронювання"],
         summary="Блокування ресурсу",
         request=None,
+        parameters=[
+            OpenApiParameter(
+                name="resource_id",
+                type=OpenApiTypes.INT,
+                location="path",
+                required=True,
+                description="ID ресурсу, який адміністратор блокує для бронювань.",
+            )
+        ],
         responses={
-            200: OpenApiResponse(description="Ресурс заблоковано."),
+            200: OpenApiResponse(
+                response=dict,
+                description="Ресурс заблоковано.",
+                examples=[
+                    OpenApiExample(
+                        "Ресурс заблоковано",
+                        value={
+                            "resource": {
+                                "id": 1,
+                                "name": "Пральна машина 1",
+                                "room_id": 5,
+                                "room_name": "Пральня",
+                                "max_person": 1,
+                                "is_blocked": True,
+                            },
+                            "cancelled_bookings_count": 2,
+                        },
+                        response_only=True,
+                    )
+                ],
+            ),
             401: OpenApiResponse(description="Користувач не авторизований."),
-            403: OpenApiResponse(description="Тільки адміністратор може блокувати ресурси."),
-            404: OpenApiResponse(description="Ресурс не знайдено."),
+            403: OpenApiResponse(
+                response=dict,
+                description="Тільки адміністратор може блокувати ресурси.",
+                examples=[
+                    OpenApiExample(
+                        "Недостатньо прав",
+                        value={"detail": "Тільки адміністратор може блокувати ресурси."},
+                        response_only=True,
+                    )
+                ],
+            ),
+            404: OpenApiResponse(
+                response=dict,
+                description="Ресурс не знайдено.",
+                examples=[
+                    OpenApiExample(
+                        "Ресурс не знайдено",
+                        value={"detail": "Ресурс з таким id не знайдено."},
+                        response_only=True,
+                    )
+                ],
+            ),
         },
     )
     def patch(self, request, resource_id):
@@ -165,6 +403,15 @@ class ResourceUnblockView(APIView):
         tags=["Бронювання"],
         summary="Розблокування ресурсу",
         request=None,
+        parameters=[
+            OpenApiParameter(
+                name="resource_id",
+                type=OpenApiTypes.INT,
+                location="path",
+                required=True,
+                description="ID ресурсу, який адміністратор знову відкриває для бронювань.",
+            )
+        ],
         responses={
             200: OpenApiResponse(
                 response=ResourceBlockSerializer,
@@ -175,17 +422,38 @@ class ResourceUnblockView(APIView):
                         value={
                             "id": 1,
                             "name": "Пральна машина 1",
-                            "room_id": 2,
+                            "room_id": 5,
                             "room_name": "Пральня",
                             "max_person": 1,
                             "is_blocked": False,
                         },
+                        response_only=True,
                     )
                 ],
             ),
             401: OpenApiResponse(description="Користувач не авторизований."),
-            403: OpenApiResponse(description="Тільки адміністратор може розблоковувати ресурси."),
-            404: OpenApiResponse(description="Ресурс не знайдено."),
+            403: OpenApiResponse(
+                response=dict,
+                description="Тільки адміністратор може розблоковувати ресурси.",
+                examples=[
+                    OpenApiExample(
+                        "Недостатньо прав",
+                        value={"detail": "Тільки адміністратор може розблоковувати ресурси."},
+                        response_only=True,
+                    )
+                ],
+            ),
+            404: OpenApiResponse(
+                response=dict,
+                description="Ресурс не знайдено.",
+                examples=[
+                    OpenApiExample(
+                        "Ресурс не знайдено",
+                        value={"detail": "Ресурс з таким id не знайдено."},
+                        response_only=True,
+                    )
+                ],
+            ),
         },
     )
     def patch(self, request, resource_id):
