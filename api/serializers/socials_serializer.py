@@ -132,6 +132,13 @@ class SocialEventDetailSerializer(serializers.ModelSerializer):
         return None
 
 
+class SocialEventFullDetailSerializer(SocialEventDetailSerializer):
+    participants = UserMapSerializer(many=True, read_only=True, help_text="Список учасників події")
+
+    class Meta(SocialEventDetailSerializer.Meta):
+        fields = SocialEventDetailSerializer.Meta.fields + ["participants"]
+
+
 class SocialSharingRequestCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = SocialSharingRequest

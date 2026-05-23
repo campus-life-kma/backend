@@ -160,6 +160,18 @@ class SocialsApiTests(APITestCase):
         event = SocialEvent.objects.get(id=response.data["id"])
         self.assertTrue(event.participants.filter(id=self.user.id).exists())
 
+    def test_get_event_detail_returns_participants(self):
+        event = self.create_event()
+        event.participants.add(self.user, self.other_user)
+
+        response = self.client.get(reverse("event-delete", kwargs={"event_id": event.id}))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        participant_ids = {participant["id"] for participant in response.data["participants"]}
+        self.assertEqual(response.data["participants_count"], 2)
+        self.assertIn(str(self.user.id), participant_ids)
+        self.assertIn(str(self.other_user.id), participant_ids)
+
     def test_create_event_requires_location(self):
         now = timezone.now()
         response = self.client.post(

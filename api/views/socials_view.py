@@ -8,6 +8,7 @@ from rest_framework.views import APIView
 from api.serializers.socials_serializer import (
     SocialEventCreateSerializer,
     SocialEventDetailSerializer,
+    SocialEventFullDetailSerializer,
     SocialSharingRequestCreateSerializer,
     SocialSharingRequestDetailSerializer,
 )
@@ -158,6 +159,30 @@ class SocialEventLeaveView(APIView):
 
 class SocialEventDeleteView(APIView):
     permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=["Соціальна стрічка"],
+        summary="Отримання детальної інформації про подію",
+        responses={
+            200: OpenApiResponse(
+                response=SocialEventFullDetailSerializer,
+                description="Детальну інформацію про подію успішно отримано.",
+            ),
+            401: OpenApiResponse(description="Користувач не авторизований."),
+            403: OpenApiResponse(description="Подія недоступна цьому користувачу."),
+            404: OpenApiResponse(description="Подію не знайдено."),
+        },
+    )
+    def get(self, request, event_id):
+        service = SocialsService()
+
+        try:
+            event = service.get_event_detail(request.user, event_id)
+        except SocialError as exc:
+            return Response({"detail": str(exc)}, status=get_social_error_status(exc))
+
+        serializer = SocialEventFullDetailSerializer(event, context={"request": request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     @extend_schema(
         tags=["Соціальна стрічка"],

@@ -122,6 +122,29 @@ class SocialsService:
         event.participants.add(user)
         return event
 
+    def get_event_detail(self, user, event_id):
+        try:
+            event = (
+                SocialEvent.objects.select_related(
+                    "creator",
+                    "creator__major",
+                    "creator__major__faculty",
+                    "room",
+                    "room__floor",
+                    "floor",
+                )
+                .prefetch_related("participants")
+                .annotate(participants_count=Count("participants"))
+                .get(id=event_id)
+            )
+        except SocialEvent.DoesNotExist as exc:
+            raise SocialNotFoundError("Подію з таким id не знайдено.") from exc
+
+        if not self.can_view_event(user, event):
+            raise SocialAccessDeniedError()
+
+        return event
+
     def join_event(self, user, event_id):
         now = timezone.now()
 
