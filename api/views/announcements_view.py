@@ -11,14 +11,19 @@ from api.serializers.announcements_serializer import (
     AnnouncementSerializer,
     TargetTypeSerializer,
 )
-from api.services.announcements_service import AnnouncementsService
+from api.services.announcements_service import (
+    AnnouncementError,
+    AnnouncementNotFoundError,
+    AnnouncementPermissionDeniedError,
+    AnnouncementsService,
+)
 
 
-def get_announcement_error_status(error_message):
-    if "не знайдено" in error_message:
+def get_announcement_error_status(error):
+    if isinstance(error, AnnouncementNotFoundError):
         return status.HTTP_404_NOT_FOUND
 
-    if "не призначене" in error_message or "немає прав" in error_message or "Голова поверху" in error_message:
+    if isinstance(error, AnnouncementPermissionDeniedError):
         return status.HTTP_403_FORBIDDEN
 
     return status.HTTP_400_BAD_REQUEST
@@ -160,8 +165,8 @@ class AnnouncementReadView(APIView):
 
         try:
             service.mark_as_read(request.user, announcement_id)
-        except ValueError as exc:
-            return Response({"detail": str(exc)}, status=get_announcement_error_status(str(exc)))
+        except AnnouncementError as exc:
+            return Response({"detail": str(exc)}, status=get_announcement_error_status(exc))
 
         return Response({"detail": "Оголошення позначено як прочитане."}, status=status.HTTP_200_OK)
 
@@ -212,6 +217,16 @@ class AnnouncementCreateView(APIView):
                 },
                 request_only=True,
             ),
+            OpenApiExample(
+                "Оголошення для кімнати",
+                value={
+                    "title": "Перевірка кімнати",
+                    "message": "Просимо мешканців кімнати бути присутніми о 18:00.",
+                    "target_type": "ROOM",
+                    "target_room": 12,
+                },
+                request_only=True,
+            ),
         ],
         responses={
             201: OpenApiResponse(response=AnnouncementSerializer, description="Оголошення створено."),
@@ -222,6 +237,18 @@ class AnnouncementCreateView(APIView):
                     OpenApiExample(
                         "Для поверху не вказано target_floor",
                         value={"target_floor": ["Для оголошення на поверх необхідно обрати поверх."]},
+                        response_only=True,
+                    ),
+                    OpenApiExample(
+                        "Для кімнати не вказано target_room",
+                        value={"target_room": ["Для оголошення на кімнату необхідно обрати кімнату."]},
+                        response_only=True,
+                    ),
+                    OpenApiExample(
+                        "Для адресного оголошення не вказано target_users",
+                        value={
+                            "target_users": ["Для адресного оголошення необхідно обрати хоча б одного користувача."]
+                        },
                         response_only=True,
                     ),
                     OpenApiExample(
@@ -258,8 +285,8 @@ class AnnouncementCreateView(APIView):
 
         try:
             announcement = service.create_announcement(request.user, serializer.validated_data)
-        except ValueError as exc:
-            return Response({"detail": str(exc)}, status=get_announcement_error_status(str(exc)))
+        except AnnouncementError as exc:
+            return Response({"detail": str(exc)}, status=get_announcement_error_status(exc))
 
         response_serializer = AnnouncementSerializer(announcement, context={"request": request})
         return Response(response_serializer.data, status=status.HTTP_201_CREATED)

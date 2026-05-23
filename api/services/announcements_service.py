@@ -6,6 +6,25 @@ from api.models import Announcement, AnnouncementRead, TargetType
 from api.services.announcement_email_service import AnnouncementEmailService
 
 
+class AnnouncementError(Exception):
+    default_detail = "Сталася помилка оголошення."
+
+    def __init__(self, detail=None):
+        super().__init__(detail or self.default_detail)
+
+
+class AnnouncementNotFoundError(AnnouncementError):
+    default_detail = "Оголошення не знайдено."
+
+
+class AnnouncementPermissionDeniedError(AnnouncementError):
+    default_detail = "У вас немає прав для цієї дії."
+
+
+class AnnouncementValidationError(AnnouncementError):
+    default_detail = "Оголошення неможливо обробити."
+
+
 class AnnouncementsService:
     def get_active_announcements(self, user):
         now = timezone.now()
@@ -37,10 +56,10 @@ class AnnouncementsService:
                 id=announcement_id
             )
         except Announcement.DoesNotExist as exc:
-            raise ValueError("Оголошення з таким id не знайдено.") from exc
+            raise AnnouncementNotFoundError("Оголошення з таким id не знайдено.") from exc
 
         if not self.can_user_see_announcement(user, announcement):
-            raise ValueError("Це оголошення не призначене для вас.")
+            raise AnnouncementPermissionDeniedError("Це оголошення не призначене для вас.")
 
         AnnouncementRead.objects.get_or_create(announcement=announcement, user=user)
         return announcement
@@ -53,7 +72,7 @@ class AnnouncementsService:
 
         expires_at = validated_data.get("expires_at")
         if expires_at and expires_at <= timezone.now():
-            raise ValueError("Час завершення оголошення має бути в майбутньому.")
+            raise AnnouncementValidationError("Час завершення оголошення має бути в майбутньому.")
 
         with transaction.atomic():
             announcement = Announcement.objects.create(creator=user, **validated_data)
@@ -74,17 +93,17 @@ class AnnouncementsService:
             return
 
         if not user.is_moderator:
-            raise ValueError("У вас немає прав для створення оголошень.")
+            raise AnnouncementPermissionDeniedError("У вас немає прав для створення оголошень.")
 
         if target_type.type != "FLOOR":
-            raise ValueError("Голова поверху може створювати оголошення лише для свого поверху.")
+            raise AnnouncementPermissionDeniedError("Голова поверху може створювати оголошення лише для свого поверху.")
 
         target_floor = validated_data.get("target_floor")
         if not target_floor:
-            raise ValueError("Для оголошення на поверх необхідно обрати поверх.")
+            raise AnnouncementValidationError("Для оголошення на поверх необхідно обрати поверх.")
 
         if self.get_user_floor_id(user) != target_floor.id:
-            raise ValueError("Голова поверху може створювати оголошення лише для свого поверху.")
+            raise AnnouncementPermissionDeniedError("Голова поверху може створювати оголошення лише для свого поверху.")
 
     def can_user_see_announcement(self, user, announcement):
         target_type = announcement.target_type.type
@@ -116,4 +135,4 @@ class AnnouncementsService:
         try:
             return TargetType.objects.get(type=target_type)
         except TargetType.DoesNotExist as exc:
-            raise ValueError("Такого типу аудиторії не існує.") from exc
+            raise AnnouncementValidationError("Такого типу аудиторії не існує.") from exc
