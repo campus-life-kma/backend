@@ -1,3 +1,4 @@
+from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
@@ -54,14 +55,17 @@ class AnnouncementsService:
         if expires_at and expires_at <= timezone.now():
             raise ValueError("Час завершення оголошення має бути в майбутньому.")
 
-        announcement = Announcement.objects.create(creator=user, **validated_data)
-        if target_users:
-            announcement.target_users.set(target_users)
+        with transaction.atomic():
+            announcement = Announcement.objects.create(creator=user, **validated_data)
+            if target_users:
+                announcement.target_users.set(target_users)
+            email_service = AnnouncementEmailService()
+            announcement_id = announcement.id
 
-        try:
-            AnnouncementEmailService().send_announcement(announcement)
-        except Exception as exc:
-            raise ValueError("Не вдалося надіслати email-сповіщення отримувачам.") from exc
+            def send_email_after_commit():
+                email_service.send_announcement_async(announcement_id)
+
+            transaction.on_commit(send_email_after_commit)
 
         return announcement
 

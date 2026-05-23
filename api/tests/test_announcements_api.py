@@ -1,4 +1,5 @@
 from datetime import timedelta
+from unittest.mock import patch
 
 from django.core import mail
 from django.test import override_settings
@@ -8,6 +9,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from api.models import Announcement, AnnouncementRead, Dormitory, Floor, Role, Room, RoomType, TargetType, User
+from api.services.announcement_email_service import AnnouncementEmailService
 
 
 @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
@@ -82,6 +84,19 @@ class AnnouncementsApiTests(APITestCase):
         }
         data.update(kwargs)
         return Announcement.objects.create(**data)
+
+    def post_announcement_with_email(self, data):
+        def send_now(service, announcement_id):
+            announcement = (
+                Announcement.objects.select_related("target_type", "target_floor", "target_room")
+                .prefetch_related("target_users")
+                .get(id=announcement_id)
+            )
+            return service.send_announcement(announcement)
+
+        with patch.object(AnnouncementEmailService, "send_announcement_async", send_now):
+            with self.captureOnCommitCallbacks(execute=True):
+                return self.client.post(reverse("announcement-create"), data, format="json")
 
     def test_active_announcements_include_matching_targets(self):
         global_announcement = self.create_announcement(title="Глобальне")
@@ -163,18 +178,23 @@ class AnnouncementsApiTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
+    def test_get_announcement_target_types(self):
+        response = self.client.get(reverse("announcement-target-types"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        target_types = {item["type"] for item in response.data}
+        self.assertEqual(target_types, {"GLOBAL", "FLOOR", "ROOM", "SPECIFIC_USERS"})
+
     def test_moderator_can_create_floor_announcement_for_own_floor(self):
         self.client.force_authenticate(user=self.moderator)
 
-        response = self.client.post(
-            reverse("announcement-create"),
+        response = self.post_announcement_with_email(
             {
                 "title": "Прибирання",
                 "message": "Сьогодні прибирання кухні",
                 "target_type": "FLOOR",
                 "target_floor": self.floor.id,
-            },
-            format="json",
+            }
         )
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -202,15 +222,13 @@ class AnnouncementsApiTests(APITestCase):
     def test_admin_can_create_specific_users_announcement(self):
         self.client.force_authenticate(user=self.admin)
 
-        response = self.client.post(
-            reverse("announcement-create"),
+        response = self.post_announcement_with_email(
             {
                 "title": "Особисте",
                 "message": "Повідомлення для конкретного мешканця",
                 "target_type": "SPECIFIC_USERS",
                 "target_users": [str(self.user.id)],
-            },
-            format="json",
+            }
         )
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -254,14 +272,12 @@ class AnnouncementsApiTests(APITestCase):
         )
         self.client.force_authenticate(user=self.admin)
 
-        response = self.client.post(
-            reverse("announcement-create"),
+        response = self.post_announcement_with_email(
             {
                 "title": "Глобальна розсилка",
                 "message": "Повідомлення для всіх активованих користувачів",
                 "target_type": "GLOBAL",
-            },
-            format="json",
+            }
         )
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)

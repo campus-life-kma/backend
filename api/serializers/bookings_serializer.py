@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from rest_framework import serializers
 
 from api.models import Booking, Resource
@@ -5,6 +7,8 @@ from api.serializers.user_serializer import UserMapSerializer
 
 
 class BookingCreateSerializer(serializers.Serializer):
+    max_booking_duration = timedelta(hours=3)
+
     resource = serializers.PrimaryKeyRelatedField(
         queryset=Resource.objects.all(),
         help_text="ID ресурсу, який потрібно забронювати",
@@ -22,7 +26,7 @@ class BookingCreateSerializer(serializers.Serializer):
         },
     )
     end_time = serializers.DateTimeField(
-        help_text="Час завершення бронювання",
+        help_text="Час завершення бронювання. Максимальна тривалість бронювання - 3 години",
         error_messages={
             "invalid": "Некоректний формат часу завершення бронювання.",
             "required": "Вкажіть час завершення бронювання.",
@@ -32,6 +36,9 @@ class BookingCreateSerializer(serializers.Serializer):
     def validate(self, attrs):
         if attrs["end_time"] <= attrs["start_time"]:
             raise serializers.ValidationError({"end_time": "Час завершення має бути пізніше часу початку."})
+
+        if attrs["end_time"] - attrs["start_time"] > self.max_booking_duration:
+            raise serializers.ValidationError({"end_time": "Бронювання не може тривати довше 3 годин."})
 
         return attrs
 

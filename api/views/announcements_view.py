@@ -5,14 +5,16 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from api.serializers.announcements_serializer import AnnouncementCreateSerializer, AnnouncementSerializer
+from api.models import TargetType
+from api.serializers.announcements_serializer import (
+    AnnouncementCreateSerializer,
+    AnnouncementSerializer,
+    TargetTypeSerializer,
+)
 from api.services.announcements_service import AnnouncementsService
 
 
 def get_announcement_error_status(error_message):
-    if "Не вдалося надіслати" in error_message:
-        return status.HTTP_500_INTERNAL_SERVER_ERROR
-
     if "не знайдено" in error_message:
         return status.HTTP_404_NOT_FOUND
 
@@ -20,6 +22,39 @@ def get_announcement_error_status(error_message):
         return status.HTTP_403_FORBIDDEN
 
     return status.HTTP_400_BAD_REQUEST
+
+
+class AnnouncementTargetTypesView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=["Оголошення"],
+        summary="Отримання типів аудиторії оголошень",
+        description="Повертає доступні значення target_type для створення оголошень.",
+        responses={
+            200: OpenApiResponse(
+                response=TargetTypeSerializer(many=True),
+                description="Типи аудиторії оголошень отримано.",
+                examples=[
+                    OpenApiExample(
+                        "Типи аудиторії",
+                        value=[
+                            {"id": 1, "type": "GLOBAL"},
+                            {"id": 2, "type": "FLOOR"},
+                            {"id": 3, "type": "ROOM"},
+                            {"id": 4, "type": "SPECIFIC_USERS"},
+                        ],
+                        response_only=True,
+                    )
+                ],
+            ),
+            401: OpenApiResponse(description="Користувач не авторизований."),
+        },
+    )
+    def get(self, request):
+        target_types = TargetType.objects.order_by("id")
+        serializer = TargetTypeSerializer(target_types, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class ActiveAnnouncementsView(APIView):
@@ -138,9 +173,10 @@ class AnnouncementCreateView(APIView):
         tags=["Оголошення"],
         summary="Створення оголошення",
         description=(
-            "Створює оголошення в системі та надсилає один email-лист усім отримувачам, які відповідають "
-            "обраному target_type. У email-розсилку потрапляють лише користувачі з is_active=True, "
-            "is_activated=True та непорожньою email-адресою."
+            "Створює оголошення в системі. Після успішного запису в базу email-розсилка запускається "
+            "асинхронно одним листом усім отримувачам, які відповідають обраному target_type. "
+            "У email-розсилку потрапляють лише користувачі з is_active=True, is_activated=True "
+            "та непорожньою email-адресою."
         ),
         request=AnnouncementCreateSerializer,
         examples=[
@@ -196,17 +232,6 @@ class AnnouncementCreateView(APIView):
                 ],
             ),
             401: OpenApiResponse(description="Користувач не авторизований."),
-            500: OpenApiResponse(
-                response=dict,
-                description="Не вдалося надіслати email-сповіщення отримувачам.",
-                examples=[
-                    OpenApiExample(
-                        "Email-розсилку не надіслано",
-                        value={"detail": "Оголошення створено, але не вдалося надіслати email-сповіщення."},
-                        response_only=True,
-                    )
-                ],
-            ),
             403: OpenApiResponse(
                 response=dict,
                 description="Недостатньо прав для створення оголошення.",

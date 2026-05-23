@@ -1,7 +1,12 @@
 from django.conf import settings
 from django.urls import path
 
-from api.views.announcements_view import ActiveAnnouncementsView, AnnouncementCreateView, AnnouncementReadView
+from api.views.announcements_view import (
+    ActiveAnnouncementsView,
+    AnnouncementCreateView,
+    AnnouncementReadView,
+    AnnouncementTargetTypesView,
+)
 from api.views.auth_view import DevLoginView, LoginView, CustomTokenRefreshView
 from api.views.bookings_view import (
     BookingCancelView,
@@ -42,6 +47,7 @@ urlpatterns = [
     ),
     path("sharing-requests/<int:request_id>/", SocialSharingRequestDeleteView.as_view(), name="sharing-request-delete"),
     path("announcements/active/", ActiveAnnouncementsView.as_view(), name="announcements-active"),
+    path("announcements/target-types/", AnnouncementTargetTypesView.as_view(), name="announcement-target-types"),
     path("announcements/<int:announcement_id>/read/", AnnouncementReadView.as_view(), name="announcement-read"),
     path("announcements/", AnnouncementCreateView.as_view(), name="announcement-create"),
     path("resources/<int:resource_id>/schedule/", ResourceScheduleView.as_view(), name="resource-schedule"),

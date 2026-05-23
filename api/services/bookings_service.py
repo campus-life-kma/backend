@@ -6,6 +6,29 @@ from django.utils import timezone
 from api.models import Booking, BookingStatus, Resource
 
 
+class BookingError(Exception):
+    default_detail = "Сталася помилка бронювання."
+
+    def __init__(self, detail=None):
+        super().__init__(detail or self.default_detail)
+
+
+class BookingNotFoundError(BookingError):
+    default_detail = "Об'єкт не знайдено."
+
+
+class BookingPermissionDeniedError(BookingError):
+    default_detail = "У вас немає прав для цієї дії."
+
+
+class BookingValidationError(BookingError):
+    default_detail = "Бронювання неможливо виконати."
+
+
+class BookingStatusNotFoundError(BookingError):
+    default_detail = "Потрібний статус бронювання не знайдено в базі даних."
+
+
 class BookingsService:
     def get_resource_schedule(self, resource_id):
         resource = self.get_resource(resource_id)
@@ -29,7 +52,7 @@ class BookingsService:
         end_time = validated_data["end_time"]
 
         if start_time <= timezone.now():
-            raise ValueError("Не можна створити бронювання в минулому.")
+            raise BookingValidationError("Не можна створити бронювання в минулому.")
 
         with transaction.atomic():
             try:
@@ -37,13 +60,13 @@ class BookingsService:
                     Resource.objects.select_for_update().select_related("room", "room__floor").get(id=resource_id)
                 )
             except Resource.DoesNotExist as exc:
-                raise ValueError("Ресурс з таким id не знайдено.") from exc
+                raise BookingNotFoundError("Ресурс з таким id не знайдено.") from exc
 
             if resource.is_blocked:
-                raise ValueError("Цей ресурс заблокований і недоступний для бронювання.")
+                raise BookingValidationError("Цей ресурс заблокований і недоступний для бронювання.")
 
             active_status = self.get_status("ACTIVE")
-            overlapping_count = (
+            overlapping_booking_ids = list(
                 Booking.objects.filter(
                     resource=resource,
                     status=active_status,
@@ -51,11 +74,11 @@ class BookingsService:
                     end_time__gt=start_time,
                 )
                 .select_for_update()
-                .count()
+                .values_list("id", flat=True)
             )
 
-            if overlapping_count >= resource.max_person:
-                raise ValueError("На цей час ресурс уже повністю зайнятий.")
+            if len(overlapping_booking_ids) >= resource.max_person:
+                raise BookingValidationError("На цей час ресурс уже повністю зайнятий.")
 
             booking = Booking.objects.create(
                 user=user,
@@ -90,10 +113,10 @@ class BookingsService:
                 "status",
             ).get(id=booking_id)
         except Booking.DoesNotExist as exc:
-            raise ValueError("Бронювання з таким id не знайдено.") from exc
+            raise BookingNotFoundError("Бронювання з таким id не знайдено.") from exc
 
         if not self.can_cancel_booking(user, booking):
-            raise ValueError("У вас немає прав для скасування цього бронювання.")
+            raise BookingPermissionDeniedError("У вас немає прав для скасування цього бронювання.")
 
         cancelled_status = self.get_status("CANCELLED")
         if booking.status_id != cancelled_status.id:
@@ -104,7 +127,7 @@ class BookingsService:
 
     def block_resource(self, user, resource_id):
         if not user.is_admin:
-            raise ValueError("Тільки адміністратор може блокувати ресурси.")
+            raise BookingPermissionDeniedError("Тільки адміністратор може блокувати ресурси.")
 
         with transaction.atomic():
             resource = self.get_resource_for_update(resource_id)
@@ -117,7 +140,7 @@ class BookingsService:
 
     def unblock_resource(self, user, resource_id):
         if not user.is_admin:
-            raise ValueError("Тільки адміністратор може розблоковувати ресурси.")
+            raise BookingPermissionDeniedError("Тільки адміністратор може розблоковувати ресурси.")
 
         with transaction.atomic():
             resource = self.get_resource_for_update(resource_id)
@@ -146,19 +169,19 @@ class BookingsService:
         try:
             return Resource.objects.select_related("room", "room__floor").get(id=resource_id)
         except Resource.DoesNotExist as exc:
-            raise ValueError("Ресурс з таким id не знайдено.") from exc
+            raise BookingNotFoundError("Ресурс з таким id не знайдено.") from exc
 
     def get_resource_for_update(self, resource_id):
         try:
             return Resource.objects.select_for_update().select_related("room", "room__floor").get(id=resource_id)
         except Resource.DoesNotExist as exc:
-            raise ValueError("Ресурс з таким id не знайдено.") from exc
+            raise BookingNotFoundError("Ресурс з таким id не знайдено.") from exc
 
     def get_status(self, status_name):
         try:
             return BookingStatus.objects.get(status=status_name)
         except BookingStatus.DoesNotExist as exc:
-            raise ValueError(f"Статус бронювання {status_name} не знайдено в базі даних.") from exc
+            raise BookingStatusNotFoundError(f"Статус бронювання {status_name} не знайдено в базі даних.") from exc
 
     def get_user_floor_id(self, user):
         if user.room_id:

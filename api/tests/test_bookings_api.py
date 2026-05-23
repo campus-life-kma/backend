@@ -217,6 +217,22 @@ class BookingsApiTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_create_booking_rejects_too_long_duration(self):
+        start_time, end_time = self.future_range(duration_hours=4)
+
+        response = self.client.post(
+            reverse("booking-create"),
+            {
+                "resource": self.resource.id,
+                "start_time": start_time.isoformat(),
+                "end_time": end_time.isoformat(),
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("end_time", response.data)
+
     def test_resource_schedule_returns_active_bookings_for_today_and_tomorrow(self):
         active_booking = self.create_booking()
         self.create_booking(status_obj=self.cancelled_status)

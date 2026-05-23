@@ -11,14 +11,23 @@ from api.serializers.bookings_serializer import (
     ResourceBlockSerializer,
     ResourceScheduleSerializer,
 )
-from api.services.bookings_service import BookingsService
+from api.services.bookings_service import (
+    BookingError,
+    BookingNotFoundError,
+    BookingPermissionDeniedError,
+    BookingStatusNotFoundError,
+    BookingsService,
+)
 
 
-def get_booking_error_status(error_message):
-    if "не знайдено" in error_message:
+def get_booking_error_status(error):
+    if isinstance(error, BookingStatusNotFoundError):
+        return status.HTTP_500_INTERNAL_SERVER_ERROR
+
+    if isinstance(error, BookingNotFoundError):
         return status.HTTP_404_NOT_FOUND
 
-    if "немає прав" in error_message or "Тільки адміністратор" in error_message:
+    if isinstance(error, BookingPermissionDeniedError):
         return status.HTTP_403_FORBIDDEN
 
     return status.HTTP_400_BAD_REQUEST
@@ -83,8 +92,8 @@ class ResourceScheduleView(APIView):
 
         try:
             bookings = service.get_resource_schedule(resource_id)
-        except ValueError as exc:
-            return Response({"detail": str(exc)}, status=get_booking_error_status(str(exc)))
+        except BookingError as exc:
+            return Response({"detail": str(exc)}, status=get_booking_error_status(exc))
 
         serializer = ResourceScheduleSerializer(bookings, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -159,6 +168,11 @@ class BookingCreateView(APIView):
                         value={"end_time": ["Час завершення має бути пізніше часу початку."]},
                         response_only=True,
                     ),
+                    OpenApiExample(
+                        "Завелика тривалість бронювання",
+                        value={"end_time": ["Бронювання не може тривати довше 3 годин."]},
+                        response_only=True,
+                    ),
                 ],
             ),
             401: OpenApiResponse(description="Користувач не авторизований."),
@@ -183,8 +197,8 @@ class BookingCreateView(APIView):
 
         try:
             booking = service.create_booking(request.user, serializer.validated_data)
-        except ValueError as exc:
-            return Response({"detail": str(exc)}, status=get_booking_error_status(str(exc)))
+        except BookingError as exc:
+            return Response({"detail": str(exc)}, status=get_booking_error_status(exc))
 
         response_serializer = BookingSerializer(booking, context={"request": request})
         return Response(response_serializer.data, status=status.HTTP_201_CREATED)
@@ -324,8 +338,8 @@ class BookingCancelView(APIView):
 
         try:
             booking = service.cancel_booking(request.user, booking_id)
-        except ValueError as exc:
-            return Response({"detail": str(exc)}, status=get_booking_error_status(str(exc)))
+        except BookingError as exc:
+            return Response({"detail": str(exc)}, status=get_booking_error_status(exc))
 
         serializer = BookingSerializer(booking, context={"request": request})
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -399,8 +413,8 @@ class ResourceBlockView(APIView):
 
         try:
             resource, cancelled_count = service.block_resource(request.user, resource_id)
-        except ValueError as exc:
-            return Response({"detail": str(exc)}, status=get_booking_error_status(str(exc)))
+        except BookingError as exc:
+            return Response({"detail": str(exc)}, status=get_booking_error_status(exc))
 
         serializer = ResourceBlockSerializer(resource, context={"request": request})
         return Response(
@@ -477,8 +491,8 @@ class ResourceUnblockView(APIView):
 
         try:
             resource = service.unblock_resource(request.user, resource_id)
-        except ValueError as exc:
-            return Response({"detail": str(exc)}, status=get_booking_error_status(str(exc)))
+        except BookingError as exc:
+            return Response({"detail": str(exc)}, status=get_booking_error_status(exc))
 
         serializer = ResourceBlockSerializer(resource, context={"request": request})
         return Response(serializer.data, status=status.HTTP_200_OK)
