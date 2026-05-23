@@ -24,7 +24,22 @@ class PresenceCheckInView(APIView):
         ],
         responses={
             200: OpenApiResponse(
-                response=PresenceResponseSerializer, description="Присутність успішно створено або оновлено."
+                response=PresenceResponseSerializer,
+                description="Присутність успішно створено або оновлено.",
+                examples=[
+                    OpenApiExample(
+                        "Поточна присутність",
+                        value={
+                            "id": 11,
+                            "room_id": 5,
+                            "room_name": "Спільна кімната",
+                            "floor_id": 3,
+                            "joined_at": "2026-05-23T18:00:00Z",
+                            "expires_at": "2026-05-23T20:00:00Z",
+                        },
+                        response_only=True,
+                    )
+                ],
             ),
             400: OpenApiResponse(
                 response=dict,

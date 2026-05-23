@@ -1,6 +1,7 @@
 from django.db.models import Q
 from django.utils import timezone
 from rest_framework import serializers
+from drf_spectacular.utils import extend_schema_field
 
 from api.models import Floor, Resource, Room, User
 from api.serializers.socials_serializer import SocialEventMapSerializer
@@ -41,6 +42,7 @@ class RoomMapSerializer(serializers.ModelSerializer):
             "active_events",
         ]
 
+    @extend_schema_field(UserMapSerializer(many=True))
     def get_current_users(self, obj):
         now = timezone.now()
 
@@ -50,6 +52,7 @@ class RoomMapSerializer(serializers.ModelSerializer):
         users = User.objects.filter(condition_present_here | condition_lives_here_and_idle).distinct()
         return UserMapSerializer(users, many=True, context=self.context).data
 
+    @extend_schema_field(SocialEventMapSerializer(many=True))
     def get_active_events(self, obj):
         now = timezone.now()
         events = obj.events.filter(start_time__lte=now, end_time__gte=now)
@@ -67,6 +70,7 @@ class FloorMapDataSerializer(serializers.ModelSerializer):
         model = Floor
         fields = ["id", "number", "map_file", "dormitory_name", "rooms", "active_floor_events"]
 
+    @extend_schema_field(SocialEventMapSerializer(many=True))
     def get_active_floor_events(self, obj):
         now = timezone.now()
         events = obj.events.filter(start_time__lte=now, end_time__gte=now)

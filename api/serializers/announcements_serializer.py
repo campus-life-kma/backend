@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from drf_spectacular.utils import extend_schema_field
 
 from api.models import Announcement, Floor, Room, TargetType, User
 from api.serializers.user_serializer import UserMapSerializer
@@ -27,6 +28,7 @@ class AnnouncementSerializer(serializers.ModelSerializer):
             "is_pinned",
         ]
 
+    @extend_schema_field(serializers.ListField(child=serializers.CharField()))
     def get_target_user_ids(self, obj):
         return [str(user_id) for user_id in obj.target_users.values_list("id", flat=True)]
 

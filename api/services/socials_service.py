@@ -134,7 +134,6 @@ class SocialsService:
                     "floor",
                 )
                 .prefetch_related("participants")
-                .annotate(participants_count=Count("participants"))
                 .get(id=event_id)
             )
         except SocialEvent.DoesNotExist as exc:

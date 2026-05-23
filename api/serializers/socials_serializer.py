@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from drf_spectacular.utils import extend_schema_field
 
 from api.models import Floor, Room, SocialEvent, SocialSharingRequest
 from api.serializers.user_serializer import UserMapSerializer
@@ -12,6 +13,7 @@ class SocialEventMapSerializer(serializers.ModelSerializer):
         model = SocialEvent
         fields = ["id", "title", "creator", "participants_count"]
 
+    @extend_schema_field(serializers.IntegerField)
     def get_participants_count(self, obj):
         annotated_count = getattr(obj, "participants_count", None)
         if annotated_count is not None:
@@ -112,9 +114,11 @@ class SocialEventDetailSerializer(serializers.ModelSerializer):
             "custom_location",
         ]
 
+    @extend_schema_field(serializers.CharField)
     def get_type(self, obj):
         return "event"
 
+    @extend_schema_field(serializers.IntegerField)
     def get_participants_count(self, obj):
         annotated_count = getattr(obj, "participants_count", None)
         if annotated_count is not None:
@@ -122,6 +126,7 @@ class SocialEventDetailSerializer(serializers.ModelSerializer):
 
         return obj.participants.count()
 
+    @extend_schema_field(serializers.IntegerField)
     def get_floor_id(self, obj):
         if obj.floor_id:
             return obj.floor_id
@@ -136,7 +141,9 @@ class SocialEventFullDetailSerializer(SocialEventDetailSerializer):
     participants = UserMapSerializer(many=True, read_only=True, help_text="Список учасників події")
 
     class Meta(SocialEventDetailSerializer.Meta):
-        fields = SocialEventDetailSerializer.Meta.fields + ["participants"]
+        fields = [field for field in SocialEventDetailSerializer.Meta.fields if field != "participants_count"] + [
+            "participants"
+        ]
 
 
 class SocialSharingRequestCreateSerializer(serializers.ModelSerializer):
@@ -158,9 +165,11 @@ class SocialSharingRequestDetailSerializer(serializers.ModelSerializer):
         model = SocialSharingRequest
         fields = ["type", "id", "title", "creator", "status", "created_at", "floor_id"]
 
+    @extend_schema_field(serializers.CharField)
     def get_type(self, obj):
         return "sharing_request"
 
+    @extend_schema_field(serializers.IntegerField)
     def get_floor_id(self, obj):
         if obj.creator.room_id:
             return obj.creator.room.floor_id

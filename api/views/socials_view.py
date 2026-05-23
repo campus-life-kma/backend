@@ -56,7 +56,47 @@ class FeedView(APIView):
             )
         ],
         responses={
-            200: OpenApiResponse(description="Сторінку стрічки успішно отримано."),
+            200: OpenApiResponse(
+                response=dict,
+                description="Сторінку стрічки успішно отримано.",
+                examples=[
+                    OpenApiExample(
+                        "Сторінка соціальної стрічки",
+                        value={
+                            "page": 1,
+                            "page_size": 20,
+                            "has_next": False,
+                            "results": [
+                                {
+                                    "type": "event",
+                                    "id": 12,
+                                    "title": "Граємо в Мафію",
+                                    "description": "Збираємось у спільній кімнаті.",
+                                    "start_time": "2026-05-23T20:00:00Z",
+                                    "end_time": "2026-05-23T22:00:00Z",
+                                    "max_person": 8,
+                                    "is_faculty_only": False,
+                                    "is_major_only": False,
+                                    "participants_count": 3,
+                                    "room_id": 5,
+                                    "room_name": "Спільна кімната",
+                                    "floor_id": 3,
+                                    "custom_location": None,
+                                },
+                                {
+                                    "type": "sharing_request",
+                                    "id": 7,
+                                    "title": "Позичте зарядку для ноутбука на дві години",
+                                    "status": "ACTIVE",
+                                    "created_at": "2026-05-23T18:10:00Z",
+                                    "floor_id": 3,
+                                },
+                            ],
+                        },
+                        response_only=True,
+                    )
+                ],
+            ),
             401: OpenApiResponse(description="Користувач не авторизований."),
         },
     )
@@ -89,9 +129,68 @@ class SocialEventCreateView(APIView):
         tags=["Соціальна стрічка"],
         summary="Створення події",
         request=SocialEventCreateSerializer,
+        examples=[
+            OpenApiExample(
+                "Подія в кімнаті",
+                value={
+                    "title": "Граємо в Мафію",
+                    "description": "Збираємось у спільній кімнаті, новачкам усе пояснимо.",
+                    "start_time": "2026-05-23T20:00:00Z",
+                    "end_time": "2026-05-23T22:00:00Z",
+                    "max_person": 8,
+                    "is_faculty_only": False,
+                    "is_major_only": False,
+                    "room": 5,
+                },
+                request_only=True,
+            ),
+            OpenApiExample(
+                "Подія на поверсі",
+                value={
+                    "title": "Кіновечір на поверсі",
+                    "description": "Дивимось фільм у холі.",
+                    "start_time": "2026-05-24T19:00:00Z",
+                    "end_time": "2026-05-24T21:30:00Z",
+                    "max_person": 0,
+                    "is_faculty_only": False,
+                    "is_major_only": False,
+                    "floor": 3,
+                },
+                request_only=True,
+            ),
+            OpenApiExample(
+                "Подія з довільною локацією",
+                value={
+                    "title": "Пробіжка біля гуртожитку",
+                    "description": "Стартуємо біля входу.",
+                    "start_time": "2026-05-25T07:30:00Z",
+                    "end_time": "2026-05-25T08:30:00Z",
+                    "max_person": 10,
+                    "is_faculty_only": False,
+                    "is_major_only": False,
+                    "custom_location": "Біля головного входу",
+                },
+                request_only=True,
+            ),
+        ],
         responses={
             201: OpenApiResponse(response=SocialEventDetailSerializer, description="Подію успішно створено."),
-            400: OpenApiResponse(description="Помилка валідації даних."),
+            400: OpenApiResponse(
+                response=dict,
+                description="Помилка валідації даних.",
+                examples=[
+                    OpenApiExample(
+                        "Локацію не вказано",
+                        value={"detail": "Вкажіть хоча б одну локацію: кімнату, поверх або текстову назву місця."},
+                        response_only=True,
+                    ),
+                    OpenApiExample(
+                        "Некоректний час завершення",
+                        value={"end_time": ["Час завершення має бути пізніше часу початку."]},
+                        response_only=True,
+                    ),
+                ],
+            ),
             401: OpenApiResponse(description="Користувач не авторизований."),
         },
     )
@@ -112,12 +211,56 @@ class SocialEventJoinView(APIView):
         tags=["Соціальна стрічка"],
         summary="Приєднання до події",
         request=None,
+        parameters=[
+            OpenApiParameter(
+                name="event_id",
+                type=OpenApiTypes.INT,
+                location="path",
+                required=True,
+                description="ID події, до якої потрібно приєднати поточного користувача.",
+            )
+        ],
         responses={
             200: OpenApiResponse(response=SocialEventDetailSerializer, description="Користувача додано до події."),
-            400: OpenApiResponse(description="Приєднатися до події неможливо."),
+            400: OpenApiResponse(
+                response=dict,
+                description="Приєднатися до події неможливо.",
+                examples=[
+                    OpenApiExample(
+                        "Немає вільних місць",
+                        value={"detail": "На цю подію вже немає вільних місць."},
+                        response_only=True,
+                    ),
+                    OpenApiExample(
+                        "Подія завершилася",
+                        value={"detail": "Неможливо приєднатися до події, яка вже завершилася."},
+                        response_only=True,
+                    ),
+                ],
+            ),
             401: OpenApiResponse(description="Користувач не авторизований."),
-            403: OpenApiResponse(description="Подія недоступна цьому користувачу."),
-            404: OpenApiResponse(description="Подію не знайдено."),
+            403: OpenApiResponse(
+                response=dict,
+                description="Подія недоступна цьому користувачу.",
+                examples=[
+                    OpenApiExample(
+                        "Немає доступу",
+                        value={"detail": "Ви не маєте доступу до цієї події."},
+                        response_only=True,
+                    )
+                ],
+            ),
+            404: OpenApiResponse(
+                response=dict,
+                description="Подію не знайдено.",
+                examples=[
+                    OpenApiExample(
+                        "Подію не знайдено",
+                        value={"detail": "Подію з таким id не знайдено."},
+                        response_only=True,
+                    )
+                ],
+            ),
         },
     )
     def post(self, request, event_id):
@@ -139,10 +282,29 @@ class SocialEventLeaveView(APIView):
         tags=["Соціальна стрічка"],
         summary="Вихід з події",
         request=None,
+        parameters=[
+            OpenApiParameter(
+                name="event_id",
+                type=OpenApiTypes.INT,
+                location="path",
+                required=True,
+                description="ID події, з якої потрібно прибрати поточного користувача.",
+            )
+        ],
         responses={
             200: OpenApiResponse(response=SocialEventDetailSerializer, description="Користувача прибрано з події."),
             401: OpenApiResponse(description="Користувач не авторизований."),
-            404: OpenApiResponse(description="Подію не знайдено."),
+            404: OpenApiResponse(
+                response=dict,
+                description="Подію не знайдено.",
+                examples=[
+                    OpenApiExample(
+                        "Подію не знайдено",
+                        value={"detail": "Подію з таким id не знайдено."},
+                        response_only=True,
+                    )
+                ],
+            ),
         },
     )
     def post(self, request, event_id):
@@ -163,14 +325,81 @@ class SocialEventDeleteView(APIView):
     @extend_schema(
         tags=["Соціальна стрічка"],
         summary="Отримання детальної інформації про подію",
+        parameters=[
+            OpenApiParameter(
+                name="event_id",
+                type=OpenApiTypes.INT,
+                location="path",
+                required=True,
+                description="ID події, для якої потрібно отримати повну інформацію.",
+            )
+        ],
         responses={
             200: OpenApiResponse(
                 response=SocialEventFullDetailSerializer,
                 description="Детальну інформацію про подію успішно отримано.",
+                examples=[
+                    OpenApiExample(
+                        "Детальна інформація про подію",
+                        value={
+                            "type": "event",
+                            "id": 12,
+                            "title": "Граємо в Мафію",
+                            "description": "Збираємось у спільній кімнаті, новачкам усе пояснимо на місці.",
+                            "start_time": "2026-05-23T20:00:00Z",
+                            "end_time": "2026-05-23T22:00:00Z",
+                            "max_person": 8,
+                            "is_faculty_only": False,
+                            "is_major_only": False,
+                            "creator": {
+                                "id": "0c3a2cb7-7ef5-4c0f-9d36-1b7f0eb05c74",
+                                "display_name": "Богдан Змеул",
+                                "photo": "/media/avatars/bogdan.jpg",
+                            },
+                            "room_id": 5,
+                            "room_name": "Спільна кімната",
+                            "floor_id": 3,
+                            "custom_location": None,
+                            "participants": [
+                                {
+                                    "id": "0c3a2cb7-7ef5-4c0f-9d36-1b7f0eb05c74",
+                                    "display_name": "Богдан Змеул",
+                                    "photo": "/media/avatars/bogdan.jpg",
+                                },
+                                {
+                                    "id": "6a6d7bb9-9210-4f62-a5df-c7c9d2c6f9a1",
+                                    "display_name": "Олена Петренко",
+                                    "photo": None,
+                                },
+                            ],
+                        },
+                        response_only=True,
+                    )
+                ],
             ),
             401: OpenApiResponse(description="Користувач не авторизований."),
-            403: OpenApiResponse(description="Подія недоступна цьому користувачу."),
-            404: OpenApiResponse(description="Подію не знайдено."),
+            403: OpenApiResponse(
+                response=dict,
+                description="Подія недоступна цьому користувачу.",
+                examples=[
+                    OpenApiExample(
+                        "Подія недоступна",
+                        value={"detail": "Ви не маєте доступу до цієї події."},
+                        response_only=True,
+                    )
+                ],
+            ),
+            404: OpenApiResponse(
+                response=dict,
+                description="Подію не знайдено.",
+                examples=[
+                    OpenApiExample(
+                        "Подію не знайдено",
+                        value={"detail": "Подію з таким id не знайдено."},
+                        response_only=True,
+                    )
+                ],
+            ),
         },
     )
     def get(self, request, event_id):
@@ -187,11 +416,40 @@ class SocialEventDeleteView(APIView):
     @extend_schema(
         tags=["Соціальна стрічка"],
         summary="Видалення події",
+        parameters=[
+            OpenApiParameter(
+                name="event_id",
+                type=OpenApiTypes.INT,
+                location="path",
+                required=True,
+                description="ID події, яку потрібно видалити.",
+            )
+        ],
         responses={
             204: OpenApiResponse(description="Подію видалено."),
             401: OpenApiResponse(description="Користувач не авторизований."),
-            403: OpenApiResponse(description="Недостатньо прав для видалення події."),
-            404: OpenApiResponse(description="Подію не знайдено."),
+            403: OpenApiResponse(
+                response=dict,
+                description="Недостатньо прав для видалення події.",
+                examples=[
+                    OpenApiExample(
+                        "Недостатньо прав",
+                        value={"detail": "Ви не маєте прав для видалення цієї події."},
+                        response_only=True,
+                    )
+                ],
+            ),
+            404: OpenApiResponse(
+                response=dict,
+                description="Подію не знайдено.",
+                examples=[
+                    OpenApiExample(
+                        "Подію не знайдено",
+                        value={"detail": "Подію з таким id не знайдено."},
+                        response_only=True,
+                    )
+                ],
+            ),
         },
     )
     def delete(self, request, event_id):
@@ -224,9 +482,29 @@ class SocialSharingRequestCreateView(APIView):
                 response=SocialSharingRequestDetailSerializer,
                 description="Запит на шеринг успішно створено.",
             ),
-            400: OpenApiResponse(description="Помилка валідації даних."),
+            400: OpenApiResponse(
+                response=dict,
+                description="Помилка валідації даних.",
+                examples=[
+                    OpenApiExample(
+                        "Порожній заголовок",
+                        value={"title": ["Це поле не може бути порожнім."]},
+                        response_only=True,
+                    )
+                ],
+            ),
             401: OpenApiResponse(description="Користувач не авторизований."),
-            500: OpenApiResponse(description="У базі відсутній потрібний статус запиту."),
+            500: OpenApiResponse(
+                response=dict,
+                description="У базі відсутній потрібний статус запиту.",
+                examples=[
+                    OpenApiExample(
+                        "Статус відсутній",
+                        value={"detail": "Статус ACTIVE не знайдено в базі даних."},
+                        response_only=True,
+                    )
+                ],
+            ),
         },
     )
     def post(self, request):
@@ -251,15 +529,54 @@ class SocialSharingRequestDoneView(APIView):
         tags=["Соціальна стрічка"],
         summary="Завершення запиту на шеринг",
         request=None,
+        parameters=[
+            OpenApiParameter(
+                name="request_id",
+                type=OpenApiTypes.INT,
+                location="path",
+                required=True,
+                description="ID запиту на шеринг, який потрібно завершити.",
+            )
+        ],
         responses={
             200: OpenApiResponse(
                 response=SocialSharingRequestDetailSerializer,
                 description="Запит на шеринг завершено.",
             ),
             401: OpenApiResponse(description="Користувач не авторизований."),
-            403: OpenApiResponse(description="Недостатньо прав для завершення запиту."),
-            404: OpenApiResponse(description="Запит на шеринг не знайдено."),
-            500: OpenApiResponse(description="У базі відсутній потрібний статус запиту."),
+            403: OpenApiResponse(
+                response=dict,
+                description="Недостатньо прав для завершення запиту.",
+                examples=[
+                    OpenApiExample(
+                        "Недостатньо прав",
+                        value={"detail": "Ви не маєте прав для завершення цього запиту."},
+                        response_only=True,
+                    )
+                ],
+            ),
+            404: OpenApiResponse(
+                response=dict,
+                description="Запит на шеринг не знайдено.",
+                examples=[
+                    OpenApiExample(
+                        "Запит не знайдено",
+                        value={"detail": "Запит на шеринг з таким id не знайдено."},
+                        response_only=True,
+                    )
+                ],
+            ),
+            500: OpenApiResponse(
+                response=dict,
+                description="У базі відсутній потрібний статус запиту.",
+                examples=[
+                    OpenApiExample(
+                        "Статус відсутній",
+                        value={"detail": "Статус COMPLETED не знайдено в базі даних."},
+                        response_only=True,
+                    )
+                ],
+            ),
         },
     )
     def patch(self, request, request_id):
@@ -280,15 +597,54 @@ class SocialSharingRequestDeleteView(APIView):
     @extend_schema(
         tags=["Соціальна стрічка"],
         summary="Видалення запиту на шеринг",
+        parameters=[
+            OpenApiParameter(
+                name="request_id",
+                type=OpenApiTypes.INT,
+                location="path",
+                required=True,
+                description="ID запиту на шеринг, який потрібно скасувати.",
+            )
+        ],
         responses={
             200: OpenApiResponse(
                 response=SocialSharingRequestDetailSerializer,
                 description="Запит на шеринг скасовано.",
             ),
             401: OpenApiResponse(description="Користувач не авторизований."),
-            403: OpenApiResponse(description="Недостатньо прав для видалення запиту."),
-            404: OpenApiResponse(description="Запит на шеринг не знайдено."),
-            500: OpenApiResponse(description="У базі відсутній потрібний статус запиту."),
+            403: OpenApiResponse(
+                response=dict,
+                description="Недостатньо прав для видалення запиту.",
+                examples=[
+                    OpenApiExample(
+                        "Недостатньо прав",
+                        value={"detail": "Ви не маєте прав для видалення цього запиту."},
+                        response_only=True,
+                    )
+                ],
+            ),
+            404: OpenApiResponse(
+                response=dict,
+                description="Запит на шеринг не знайдено.",
+                examples=[
+                    OpenApiExample(
+                        "Запит не знайдено",
+                        value={"detail": "Запит на шеринг з таким id не знайдено."},
+                        response_only=True,
+                    )
+                ],
+            ),
+            500: OpenApiResponse(
+                response=dict,
+                description="У базі відсутній потрібний статус запиту.",
+                examples=[
+                    OpenApiExample(
+                        "Статус відсутній",
+                        value={"detail": "Статус CANCELLED не знайдено в базі даних."},
+                        response_only=True,
+                    )
+                ],
+            ),
         },
     )
     def delete(self, request, request_id):

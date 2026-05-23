@@ -168,7 +168,8 @@ class SocialsApiTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         participant_ids = {participant["id"] for participant in response.data["participants"]}
-        self.assertEqual(response.data["participants_count"], 2)
+        self.assertNotIn("participants_count", response.data)
+        self.assertEqual(len(response.data["participants"]), 2)
         self.assertIn(str(self.user.id), participant_ids)
         self.assertIn(str(self.other_user.id), participant_ids)
 
