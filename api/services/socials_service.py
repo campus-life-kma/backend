@@ -77,7 +77,7 @@ class SocialsService:
         user_faculty_id = self.get_faculty_id(user)
 
         return (
-            SocialEvent.objects.filter(start_time__gte=now)
+            SocialEvent.objects.filter(end_time__gte=now)
             .filter(Q(is_faculty_only=False) | Q(creator__major__faculty_id=user_faculty_id))
             .filter(Q(is_major_only=False) | Q(creator__major_id=user.major_id))
         )

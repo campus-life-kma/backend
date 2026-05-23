@@ -104,8 +104,11 @@ class SocialsApiTests(APITestCase):
         data.update(kwargs)
         return SocialEvent.objects.create(**data)
 
-    def test_feed_returns_future_events_and_active_sharing_requests(self):
+    def test_feed_returns_actual_events_and_active_sharing_requests(self):
         event = self.create_event()
+        ongoing_event = self.create_event(
+            start_time=timezone.now() - timedelta(hours=1), end_time=timezone.now() + timedelta(hours=1)
+        )
         sharing_request = SocialSharingRequest.objects.create(
             creator=self.user,
             title="Позичте зарядку",
@@ -123,8 +126,9 @@ class SocialsApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         result_ids = {(item["type"], item["id"]) for item in response.data["results"]}
         self.assertIn(("event", event.id), result_ids)
+        self.assertIn(("event", ongoing_event.id), result_ids)
         self.assertIn(("sharing_request", sharing_request.id), result_ids)
-        self.assertEqual(len(response.data["results"]), 2)
+        self.assertEqual(len(response.data["results"]), 3)
 
     def test_feed_hides_foreign_faculty_only_events(self):
         hidden_event = self.create_event(creator=self.other_user, is_faculty_only=True)
