@@ -11,18 +11,30 @@ from api.serializers.socials_serializer import (
     SocialSharingRequestCreateSerializer,
     SocialSharingRequestDetailSerializer,
 )
-from api.services.socials_service import SocialsService
+from api.services.socials_service import (
+    SocialAccessDeniedError,
+    SocialError,
+    SocialEventFullError,
+    SocialEventUnavailableError,
+    SocialNotFoundError,
+    SocialPermissionDeniedError,
+    SocialStatusNotFoundError,
+    SocialsService,
+)
 
 
-def get_social_error_status(error_message):
-    if error_message.startswith("Статус "):
+def get_social_error_status(exc):
+    if isinstance(exc, SocialStatusNotFoundError):
         return status.HTTP_500_INTERNAL_SERVER_ERROR
 
-    if "не знайдено" in error_message:
+    if isinstance(exc, SocialNotFoundError):
         return status.HTTP_404_NOT_FOUND
 
-    if "не маєте доступу" in error_message or "не маєте прав" in error_message:
+    if isinstance(exc, (SocialAccessDeniedError, SocialPermissionDeniedError)):
         return status.HTTP_403_FORBIDDEN
+
+    if isinstance(exc, (SocialEventFullError, SocialEventUnavailableError)):
+        return status.HTTP_400_BAD_REQUEST
 
     return status.HTTP_400_BAD_REQUEST
 
@@ -112,8 +124,8 @@ class SocialEventJoinView(APIView):
 
         try:
             event = service.join_event(request.user, event_id)
-        except ValueError as exc:
-            return Response({"detail": str(exc)}, status=get_social_error_status(str(exc)))
+        except SocialError as exc:
+            return Response({"detail": str(exc)}, status=get_social_error_status(exc))
 
         serializer = SocialEventDetailSerializer(event, context={"request": request})
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -137,8 +149,8 @@ class SocialEventLeaveView(APIView):
 
         try:
             event = service.leave_event(request.user, event_id)
-        except ValueError as exc:
-            return Response({"detail": str(exc)}, status=get_social_error_status(str(exc)))
+        except SocialError as exc:
+            return Response({"detail": str(exc)}, status=get_social_error_status(exc))
 
         serializer = SocialEventDetailSerializer(event, context={"request": request})
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -162,8 +174,8 @@ class SocialEventDeleteView(APIView):
 
         try:
             service.delete_event(request.user, event_id)
-        except ValueError as exc:
-            return Response({"detail": str(exc)}, status=get_social_error_status(str(exc)))
+        except SocialError as exc:
+            return Response({"detail": str(exc)}, status=get_social_error_status(exc))
 
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -200,8 +212,8 @@ class SocialSharingRequestCreateView(APIView):
 
         try:
             sharing_request = service.create_sharing_request(request.user, serializer.validated_data)
-        except ValueError as exc:
-            return Response({"detail": str(exc)}, status=get_social_error_status(str(exc)))
+        except SocialError as exc:
+            return Response({"detail": str(exc)}, status=get_social_error_status(exc))
 
         response_serializer = SocialSharingRequestDetailSerializer(sharing_request, context={"request": request})
         return Response(response_serializer.data, status=status.HTTP_201_CREATED)
@@ -230,8 +242,8 @@ class SocialSharingRequestDoneView(APIView):
 
         try:
             sharing_request = service.complete_sharing_request(request.user, request_id)
-        except ValueError as exc:
-            return Response({"detail": str(exc)}, status=get_social_error_status(str(exc)))
+        except SocialError as exc:
+            return Response({"detail": str(exc)}, status=get_social_error_status(exc))
 
         serializer = SocialSharingRequestDetailSerializer(sharing_request, context={"request": request})
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -259,8 +271,8 @@ class SocialSharingRequestDeleteView(APIView):
 
         try:
             sharing_request = service.delete_sharing_request(request.user, request_id)
-        except ValueError as exc:
-            return Response({"detail": str(exc)}, status=get_social_error_status(str(exc)))
+        except SocialError as exc:
+            return Response({"detail": str(exc)}, status=get_social_error_status(exc))
 
         serializer = SocialSharingRequestDetailSerializer(sharing_request, context={"request": request})
         return Response(serializer.data, status=status.HTTP_200_OK)

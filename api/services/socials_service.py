@@ -1,7 +1,40 @@
 from django.db import transaction
+from django.db.models import F, Q, Value
+from django.db.models.fields import CharField
 from django.utils import timezone
 
 from api.models import SocialEvent, SocialSharingRequest, SocialSharingStatus
+
+
+class SocialError(Exception):
+    default_detail = "Сталася помилка соціальної стрічки."
+
+    def __init__(self, detail=None):
+        super().__init__(detail or self.default_detail)
+
+
+class SocialNotFoundError(SocialError):
+    default_detail = "Об'єкт не знайдено."
+
+
+class SocialPermissionDeniedError(SocialError):
+    default_detail = "У вас немає прав для цієї дії."
+
+
+class SocialAccessDeniedError(SocialError):
+    default_detail = "Ви не маєте доступу до цієї події."
+
+
+class SocialEventFullError(SocialError):
+    default_detail = "На цю подію вже немає вільних місць."
+
+
+class SocialEventUnavailableError(SocialError):
+    default_detail = "Неможливо приєднатися до події, яка вже завершилася."
+
+
+class SocialStatusNotFoundError(SocialError):
+    default_detail = "Потрібний статус не знайдено в базі даних."
 
 
 class SocialsService:
@@ -11,32 +44,73 @@ class SocialsService:
         page = max(page, 1)
         now = timezone.now()
 
-        events = (
-            SocialEvent.objects.filter(start_time__gte=now)
-            .select_related("creator", "creator__major", "creator__major__faculty", "room", "room__floor", "floor")
-            .prefetch_related("participants")
-        )
-        sharing_requests = (
-            SocialSharingRequest.objects.filter(status__status="ACTIVE")
-            .select_related("creator", "creator__room", "creator__room__floor", "status")
-            .order_by("-created_at")
-        )
-
-        visible_events = [event for event in events if self.can_view_event(user, event)]
-        items = [(event.start_time, "event", event) for event in visible_events]
-        items.extend((request.created_at, "sharing_request", request) for request in sharing_requests)
-        items.sort(key=lambda item: item[0], reverse=True)
-
         start = (page - 1) * self.page_size
         end = start + self.page_size
-        page_items = items[start:end]
+        rows = list(self.get_feed_rows(user, now)[start : end + 1])
+        page_rows = rows[: self.page_size]
 
         return {
             "page": page,
             "page_size": self.page_size,
-            "has_next": len(items) > end,
-            "items": page_items,
+            "has_next": len(rows) > self.page_size,
+            "items": self.resolve_feed_items(page_rows),
         }
+
+    def get_feed_rows(self, user, now):
+        visible_events = self.get_visible_events_queryset(user, now).annotate(
+            item_type=Value("event", output_field=CharField()),
+            item_id=F("id"),
+            sort_time=F("start_time"),
+        )
+        active_sharing_requests = SocialSharingRequest.objects.filter(status__status="ACTIVE").annotate(
+            item_type=Value("sharing_request", output_field=CharField()),
+            item_id=F("id"),
+            sort_time=F("created_at"),
+        )
+
+        event_rows = visible_events.values("item_type", "item_id", "sort_time")
+        sharing_rows = active_sharing_requests.values("item_type", "item_id", "sort_time")
+
+        return event_rows.union(sharing_rows, all=True).order_by("-sort_time")
+
+    def get_visible_events_queryset(self, user, now):
+        user_faculty_id = self.get_faculty_id(user)
+
+        return (
+            SocialEvent.objects.filter(start_time__gte=now)
+            .filter(Q(is_faculty_only=False) | Q(creator__major__faculty_id=user_faculty_id))
+            .filter(Q(is_major_only=False) | Q(creator__major_id=user.major_id))
+        )
+
+    def resolve_feed_items(self, rows):
+        event_ids = [row["item_id"] for row in rows if row["item_type"] == "event"]
+        sharing_request_ids = [row["item_id"] for row in rows if row["item_type"] == "sharing_request"]
+        events = SocialEvent.objects.select_related(
+            "creator",
+            "creator__major",
+            "creator__major__faculty",
+            "room",
+            "room__floor",
+            "floor",
+        ).in_bulk(event_ids)
+        sharing_requests = SocialSharingRequest.objects.select_related(
+            "creator",
+            "creator__room",
+            "creator__room__floor",
+            "status",
+        ).in_bulk(sharing_request_ids)
+
+        items = []
+        for row in rows:
+            if row["item_type"] == "event":
+                item = events.get(row["item_id"])
+            else:
+                item = sharing_requests.get(row["item_id"])
+
+            if item:
+                items.append((row["sort_time"], row["item_type"], item))
+
+        return items
 
     def create_event(self, user, validated_data):
         event = SocialEvent.objects.create(creator=user, **validated_data)
@@ -50,19 +124,19 @@ class SocialsService:
             try:
                 event = SocialEvent.objects.select_for_update().get(id=event_id)
             except SocialEvent.DoesNotExist as exc:
-                raise ValueError("Подію з таким id не знайдено.") from exc
+                raise SocialNotFoundError("Подію з таким id не знайдено.") from exc
 
             if event.end_time < now:
-                raise ValueError("Неможливо приєднатися до події, яка вже завершилася.")
+                raise SocialEventUnavailableError()
 
             if not self.can_view_event(user, event):
-                raise ValueError("Ви не маєте доступу до цієї події.")
+                raise SocialAccessDeniedError()
 
             if event.participants.filter(id=user.id).exists():
                 return event
 
             if event.max_person > 0 and event.participants.count() >= event.max_person:
-                raise ValueError("На цю подію вже немає вільних місць.")
+                raise SocialEventFullError()
 
             event.participants.add(user)
 
@@ -72,7 +146,7 @@ class SocialsService:
         try:
             event = SocialEvent.objects.prefetch_related("participants").get(id=event_id)
         except SocialEvent.DoesNotExist as exc:
-            raise ValueError("Подію з таким id не знайдено.") from exc
+            raise SocialNotFoundError("Подію з таким id не знайдено.") from exc
 
         event.participants.remove(user)
         return event
@@ -81,10 +155,10 @@ class SocialsService:
         try:
             event = SocialEvent.objects.select_related("creator", "room", "room__floor", "floor").get(id=event_id)
         except SocialEvent.DoesNotExist as exc:
-            raise ValueError("Подію з таким id не знайдено.") from exc
+            raise SocialNotFoundError("Подію з таким id не знайдено.") from exc
 
         if not self.can_manage_event(user, event):
-            raise ValueError("Ви не маєте прав для видалення цієї події.")
+            raise SocialPermissionDeniedError("Ви не маєте прав для видалення цієї події.")
 
         event.delete()
 
@@ -98,10 +172,10 @@ class SocialsService:
                 "creator", "creator__room", "creator__room__floor", "status"
             ).get(id=request_id)
         except SocialSharingRequest.DoesNotExist as exc:
-            raise ValueError("Запит на шеринг з таким id не знайдено.") from exc
+            raise SocialNotFoundError("Запит на шеринг з таким id не знайдено.") from exc
 
         if not self.can_manage_sharing_request(user, sharing_request):
-            raise ValueError("Ви не маєте прав для завершення цього запиту.")
+            raise SocialPermissionDeniedError("Ви не маєте прав для завершення цього запиту.")
 
         sharing_request.status = self.get_status("COMPLETED")
         sharing_request.save(update_fields=["status"])
@@ -113,10 +187,10 @@ class SocialsService:
                 "creator", "creator__room", "creator__room__floor", "status"
             ).get(id=request_id)
         except SocialSharingRequest.DoesNotExist as exc:
-            raise ValueError("Запит на шеринг з таким id не знайдено.") from exc
+            raise SocialNotFoundError("Запит на шеринг з таким id не знайдено.") from exc
 
         if not self.can_manage_sharing_request(user, sharing_request):
-            raise ValueError("Ви не маєте прав для видалення цього запиту.")
+            raise SocialPermissionDeniedError("Ви не маєте прав для видалення цього запиту.")
 
         sharing_request.status = self.get_status("CANCELLED")
         sharing_request.save(update_fields=["status"])
@@ -126,7 +200,7 @@ class SocialsService:
         try:
             return SocialSharingStatus.objects.get(status=status_name)
         except SocialSharingStatus.DoesNotExist as exc:
-            raise ValueError(f"Статус {status_name} не знайдено в базі даних.") from exc
+            raise SocialStatusNotFoundError(f"Статус {status_name} не знайдено в базі даних.") from exc
 
     def can_view_event(self, user, event):
         if event.is_faculty_only and self.get_faculty_id(user) != self.get_faculty_id(event.creator):
