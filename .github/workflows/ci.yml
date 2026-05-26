@@ -10,6 +10,14 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
 
+    env:
+      DB_NAME: postgres
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_HOST: localhost
+      DB_PORT: 5434
+      SECRET_KEY: "ci-test-key"
+
     steps:
     - uses: actions/checkout@v4
 
@@ -33,11 +41,7 @@ jobs:
         flake8 .
 
     - name: Django System Check
-      env:
-        DB_NAME: postgres
-        DB_USER: postgres
-        DB_PASSWORD: postgres
-        DB_HOST: localhost
-        DB_PORT: 5434
-        SECRET_KEY: "ci-test-key"
       run: python manage.py check
+
+    - name: Run tests
+      run: python manage.py test
