@@ -23,7 +23,7 @@
 
 2. **Запустіть систему:**
 ```bash
-docker-compose up --build
+docker-compose up --build -d
 ```
 
 3. **Виконайте міграції:**
@@ -32,7 +32,12 @@ docker-compose up --build
 docker-compose exec backend python manage.py migrate
 ```
 
-4. **Доступи:**
+4. **За бажанням можете виконати міграцію з тестовим набором даних**
+```bash
+docker-compose exec backend python manage.py seed_dev
+```
+
+5. **Доступи:**
    - Бекенд: http://localhost:8888
    - Swagger: http://localhost:8888/api/docs/
    - Redoc: http://localhost:8888/api/redoc/

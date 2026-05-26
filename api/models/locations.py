@@ -16,7 +16,9 @@ class Floor(models.Model):
     dormitory = models.ForeignKey(
         Dormitory, on_delete=models.CASCADE, related_name="floors", help_text="Гуртожиток, до якого належить цей поверх"
     )
-    number = models.IntegerField(help_text="Номер поверху (наприклад, 1, 2, 3)", validators=[MinValueValidator(1)])
+    number = models.IntegerField(
+        help_text="Номер поверху (наприклад, 1, 2, 3)", unique=True, validators=[MinValueValidator(1)]
+    )
     map_file = models.FileField(
         upload_to="maps/",
         help_text="Файл інтерактивної карти поверху (у форматі SVG), на якому відмальовуються кімнати",
