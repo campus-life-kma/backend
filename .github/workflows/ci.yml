@@ -30,7 +30,7 @@ jobs:
       DB_USER: postgres
       DB_PASSWORD: postgres
       DB_HOST: localhost
-      DB_PORT: 5434
+      DB_PORT: 5432
       SECRET_KEY: "ci-test-key"
 
     steps:
