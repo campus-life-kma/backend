@@ -22,6 +22,9 @@ class Floor(models.Model):
         help_text="Файл інтерактивної карти поверху (у форматі SVG), на якому відмальовуються кімнати",
     )
 
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["dormitory", "number"], name="unique_floor_per_dormitory")]
+
     def __str__(self):
         return f"{self.dormitory.name} - Поверх {self.number}"
 
