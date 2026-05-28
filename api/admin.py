@@ -47,6 +47,7 @@ class RoomAdmin(admin.ModelAdmin):
     list_filter = ("room_type", "is_blocked", "floor__dormitory")
     search_fields = ("name",)
 
+
 @admin.register(Resource)
 class ResourceAdmin(admin.ModelAdmin):
     list_display = ("name", "room", "is_blocked")

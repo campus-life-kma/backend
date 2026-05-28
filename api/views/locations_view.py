@@ -125,7 +125,7 @@ class FloorMapDataView(APIView):
                                             "max_person": 1,
                                             "is_blocked": False,
                                             "resource_type": "OVEN",
-                                            "resource_icon": "/media/resource-icons/oven.svg"
+                                            "resource_icon": "/media/resource-icons/oven.svg",
                                         }
                                     ],
                                     "current_users": [],
