@@ -9,8 +9,8 @@ def insert_initial_data(apps, schema_editor):
     Dormitory = apps.get_model('api', 'Dormitory')
     Floor = apps.get_model('api', 'Floor')
     Room = apps.get_model('api', 'Room')
+    ResourceType = apps.get_model('api', 'ResourceType')
     Resource = apps.get_model('api', 'Resource')
-    User = apps.get_model('api', 'User')
     Faculty = apps.get_model('api', 'Faculty')
     Major = apps.get_model('api', 'Major')
     SocialSharingStatus = apps.get_model('api', 'SocialSharingStatus')
@@ -38,6 +38,21 @@ def insert_initial_data(apps, schema_editor):
         RoomType(type='BATHROOM'),
         RoomType(type='STORAGE')
     ])
+
+    washing_machine = ResourceType.objects.create(
+        type='WASHING_MACHINE',
+        icon_file="resource-icons/washing-machine.svg"
+    )
+
+    cooktop = ResourceType.objects.create(
+        type='COOKTOP',
+        icon_file="resource-icons/cooktop.svg"
+    )
+
+    oven = ResourceType.objects.create(
+        type='OVEN',
+        icon_file="resource-icons/oven.svg"
+    )
 
     SocialSharingStatus.objects.bulk_create([
         SocialSharingStatus(status='ACTIVE'),
@@ -151,8 +166,8 @@ def insert_initial_data(apps, schema_editor):
     laundry = Room.objects.create(floor=floor1, room_type=laundry_type, name="Пральня", max_person=1, svg_element_id="washing_room")
 
     Resource.objects.bulk_create([
-        Resource(room=laundry, name="Пралка 1", max_person=1),
-        Resource(room=laundry, name="Пралка 2", max_person=1)
+        Resource(room=laundry, resource_type=washing_machine,  name="Пралка 1", max_person=1),
+        Resource(room=laundry, resource_type=washing_machine, name="Пралка 2", max_person=1)
     ])
 
     i = 3
@@ -209,10 +224,10 @@ def insert_initial_data(apps, schema_editor):
                 svg_element_id="room_9"
             )
             Resource.objects.bulk_create([
-                Resource(room=kitchen, name="Варильна поверхня 1", max_person=4),
-                Resource(room=kitchen, name="Варильна поверхня 2", max_person=4),
-                Resource(room=kitchen, name="Духова шафа 1", max_person=1),
-                Resource(room=kitchen, name="Духова шафа 2", max_person=1)
+                Resource(room=kitchen, resource_type=cooktop, name="Варильна поверхня 1", max_person=4),
+                Resource(room=kitchen, resource_type=cooktop, name="Варильна поверхня 2", max_person=4),
+                Resource(room=kitchen, resource_type=oven, name="Духова шафа 1", max_person=1),
+                Resource(room=kitchen, resource_type=oven, name="Духова шафа 2", max_person=1)
             ])
         else:
             Room.objects.create(
@@ -230,16 +245,16 @@ def reverse_initial_data(apps, schema_editor):
     Role = apps.get_model('api', 'Role')
     TargetType = apps.get_model('api', 'TargetType')
     RoomType = apps.get_model('api', 'RoomType')
+    ResourceType = apps.get_model('api', 'ResourceType')
     Dormitory = apps.get_model('api', 'Dormitory')
     Faculty = apps.get_model('api', 'Faculty')
-    User = apps.get_model('api', 'User')
     SocialSharingStatus = apps.get_model('api', 'SocialSharingStatus')
 
-    User.objects.all().delete()
     Dormitory.objects.all().delete()
     Faculty.objects.all().delete()
     Role.objects.all().delete()
     TargetType.objects.all().delete()
+    ResourceType.objects.all().delete()
     RoomType.objects.all().delete()
     SocialSharingStatus.objects.all().delete()
 

@@ -5,7 +5,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from api.models import Booking, BookingStatus, Dormitory, Floor, Resource, Role, Room, RoomType, User
+from api.models import Booking, BookingStatus, Dormitory, Floor, Resource, Role, Room, RoomType, User, ResourceType
 
 
 class BookingsApiTests(APITestCase):
@@ -53,18 +53,24 @@ class BookingsApiTests(APITestCase):
             svg_element_id="booking-laundry-2",
         )
 
+        self.washer_type, _ = ResourceType.objects.get_or_create(type="Пральна машина")
+        self.dryer_type, _ = ResourceType.objects.get_or_create(type="Сушильна машина")
+
         self.resource = Resource.objects.create(
             room=self.laundry_room,
+            resource_type=self.washer_type,
             name="Пральна машина 1",
             max_person=1,
         )
         self.shared_resource = Resource.objects.create(
             room=self.laundry_room,
+            resource_type=self.dryer_type,
             name="Сушильна машина 1",
             max_person=2,
         )
         self.other_resource = Resource.objects.create(
             room=self.other_laundry_room,
+            resource_type=self.washer_type,
             name="Пральна машина 2",
             max_person=1,
         )
