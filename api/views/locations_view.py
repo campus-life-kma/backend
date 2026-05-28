@@ -119,7 +119,14 @@ class FloorMapDataView(APIView):
                                     "is_blocked": False,
                                     "svg_element_id": "kitchen_left_polygon",
                                     "resources": [
-                                        {"id": 1, "name": "Електроплита №1", "max_person": 1, "is_blocked": False}
+                                        {
+                                            "id": 1,
+                                            "name": "Електроплита №1",
+                                            "max_person": 1,
+                                            "is_blocked": False,
+                                            "resource_type": "OVEN",
+                                            "resource_icon": "/media/resource-icons/oven.svg"
+                                        }
                                     ],
                                     "current_users": [],
                                     "active_events": [

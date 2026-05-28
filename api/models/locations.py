@@ -72,12 +72,32 @@ class Room(models.Model):
         return f"{self.name} (Поверх {self.floor.number})"
 
 
+class ResourceType(models.Model):
+    type = models.CharField(
+        max_length=50,
+        unique=True,
+        help_text="Тип ресурсу, наприклад пралка"
+    )
+    icon_file = models.FileField(
+        upload_to="resource-icons/",
+        help_text="Файл типу ресурсу (у форматі SVG), який буде відмальовуватися на фронтенді",
+    )
+
+    def __str__(self):
+        return f"{self.type}"
+
 class Resource(models.Model):
     room = models.ForeignKey(
         Room,
         on_delete=models.CASCADE,
         related_name="resources",
         help_text="Кімната або приміщення, де фізично розташований цей ресурс",
+    )
+    resource_type = models.ForeignKey(
+        ResourceType,
+        on_delete=models.PROTECT,
+        related_name="resources",
+        help_text="Тип ресурсу"
     )
     name = models.CharField(
         max_length=100,

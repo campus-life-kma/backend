@@ -15,9 +15,17 @@ class FloorListSerializer(serializers.ModelSerializer):
 
 
 class ResourceSerializer(serializers.ModelSerializer):
+    resource_type = serializers.CharField(
+        source="resource_type.type", help_text="Категорія ресурсу (наприклад 'Пралка', 'Духова піч')"
+    )
+
+    resource_icon = serializers.FileField(
+        source="resource_type.icon_file", read_only=True, help_text="Іконка категорії ресурсу"
+    )
+
     class Meta:
         model = Resource
-        fields = ["id", "name", "max_person", "is_blocked"]
+        fields = ["id", "name", "max_person", "is_blocked", "resource_type", "resource_icon"]
 
 
 class RoomMapSerializer(serializers.ModelSerializer):
