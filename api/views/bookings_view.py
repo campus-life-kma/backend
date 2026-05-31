@@ -10,6 +10,7 @@ from api.serializers.bookings_serializer import (
     BookingSerializer,
     ResourceBlockSerializer,
     ResourceScheduleSerializer,
+    BookingUpdateSerializer,
 )
 from api.services.bookings_service import (
     BookingError,
@@ -513,3 +514,132 @@ class ResourceUnblockView(APIView):
 
         serializer = ResourceBlockSerializer(resource, context={"request": request})
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class BookingUpdateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=["Бронювання"],
+        summary="Редагування часу бронювання",
+        description=(
+            "Ендпоінт для перенесення існуючого бронювання на інший час. "
+            "Перевіряє, чи не перекривається новий час із бронями інших користувачів "
+            "(при цьому ігнорує поточний час самої броні, яку ми переносимо)."
+        ),
+        request=BookingUpdateSerializer,
+        parameters=[
+            OpenApiParameter(
+                name="booking_id",
+                type=OpenApiTypes.INT,
+                location="path",
+                required=True,
+                description="ID бронювання, час якого потрібно змінити.",
+            )
+        ],
+        examples=[
+            OpenApiExample(
+                "Новий час для бронювання",
+                value={
+                    "start_time": "2026-05-23T19:00:00Z",
+                    "end_time": "2026-05-23T20:30:00Z",
+                },
+                request_only=True,
+            )
+        ],
+        responses={
+            200: OpenApiResponse(
+                response=BookingSerializer,
+                description="Час бронювання успішно оновлено.",
+                examples=[
+                    OpenApiExample(
+                        "Бронювання оновлено",
+                        value={
+                            "id": 17,
+                            "user": {
+                                "id": "0c3a2cb7-7ef5-4c0f-9d36-1b7f0eb05c74",
+                                "display_name": "Богдан Змеул",
+                                "photo": "/media/avatars/bogdan.jpg",
+                            },
+                            "resource_id": 1,
+                            "resource_name": "Пральна машина 1",
+                            "room_id": 5,
+                            "room_name": "Пральня",
+                            "floor_id": 3,
+                            "start_time": "2026-05-23T19:00:00Z",
+                            "end_time": "2026-05-23T20:30:00Z",
+                            "status": "ACTIVE",
+                        },
+                        response_only=True,
+                    )
+                ],
+            ),
+            400: OpenApiResponse(
+                response=dict,
+                description="Помилка валідації або бізнес-логіки.",
+                examples=[
+                    OpenApiExample(
+                        "Ресурс зайнятий",
+                        value={"detail": "На обраний час ресурс уже повністю зайнятий кимось іншим."},
+                        response_only=True,
+                    ),
+                    OpenApiExample(
+                        "Ресурс заблокований",
+                        value={"detail": "Цей ресурс наразі заблокований."},
+                        response_only=True,
+                    ),
+                    OpenApiExample(
+                        "Бронювання не активне",
+                        value={"detail": "Редагувати можна лише активні бронювання."},
+                        response_only=True,
+                    ),
+                    OpenApiExample(
+                        "Завелика тривалість",
+                        value={"end_time": ["Бронювання не може тривати довше 3 годин."]},
+                        response_only=True,
+                    ),
+                    OpenApiExample(
+                        "Перенесення в минуле",
+                        value={"start_time": ["Не можна перенести бронювання на минулий час."]},
+                        response_only=True,
+                    ),
+                ],
+            ),
+            401: OpenApiResponse(description="Користувач не авторизований."),
+            403: OpenApiResponse(
+                response=dict,
+                description="Недостатньо прав для редагування.",
+                examples=[
+                    OpenApiExample(
+                        "Недостатньо прав",
+                        value={"detail": "У вас немає прав для редагування цього бронювання."},
+                        response_only=True,
+                    )
+                ],
+            ),
+            404: OpenApiResponse(
+                response=dict,
+                description="Бронювання не знайдено.",
+                examples=[
+                    OpenApiExample(
+                        "Бронювання не знайдено",
+                        value={"detail": "Бронювання з таким id не знайдено."},
+                        response_only=True,
+                    )
+                ],
+            ),
+        },
+    )
+    def patch(self, request, booking_id):
+        serializer = BookingUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        service = BookingsService()
+
+        try:
+            booking = service.update_booking_time(request.user, booking_id, serializer.validated_data)
+        except BookingError as exc:
+            return Response({"detail": str(exc)}, status=get_booking_error_status(exc))
+
+        response_serializer = BookingSerializer(booking, context={"request": request})
+        return Response(response_serializer.data, status=status.HTTP_200_OK)

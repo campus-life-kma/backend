@@ -149,6 +149,47 @@ class BookingsService:
 
         return booking
 
+    def update_booking_time(self, user, booking_id, validated_data):
+        new_start = validated_data["start_time"]
+        new_end = validated_data["end_time"]
+
+        with transaction.atomic():
+            try:
+                booking = Booking.objects.select_for_update().select_related("resource").get(id=booking_id)
+            except Booking.DoesNotExist as exc:
+                raise BookingNotFoundError("Бронювання з таким id не знайдено.") from exc
+
+            if not user.is_admin and booking.user.id != user.id:
+                raise BookingPermissionDeniedError("У вас немає прав для редагування цього бронювання.")
+
+            if booking.status.status != "ACTIVE":
+                raise BookingValidationError("Редагувати можна лише активні бронювання.")
+
+            if booking.resource.is_blocked:
+                raise BookingValidationError("Цей ресурс наразі заблокований.")
+
+            active_status = self.get_status("ACTIVE")
+            overlapping_bookings_count = (
+                Booking.objects.filter(
+                    resource=booking.resource,
+                    status=active_status,
+                    start_time__lt=new_end,
+                    end_time__gt=new_start,
+                )
+                .exclude(id=booking.id)
+                .select_for_update()
+                .count()
+            )
+
+            if overlapping_bookings_count >= booking.resource.max_person:
+                raise BookingValidationError("На обраний час ресурс уже повністю зайнятий кимось іншим.")
+
+            booking.start_time = new_start
+            booking.end_time = new_end
+            booking.save(update_fields=["start_time", "end_time"])
+
+        return booking
+
     def block_resource(self, user, resource_id):
         if not user.is_admin:
             raise BookingPermissionDeniedError("Тільки адміністратор може блокувати ресурси.")

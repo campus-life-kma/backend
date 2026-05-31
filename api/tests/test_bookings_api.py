@@ -334,3 +334,67 @@ class BookingsApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.resource.refresh_from_db()
         self.assertFalse(self.resource.is_blocked)
+
+    def test_update_booking_success_and_ignores_self_overlap(self):
+        start_time, end_time = self.future_range()
+        booking = self.create_booking(start_time=start_time, end_time=end_time)
+
+        new_start = start_time + timedelta(minutes=30)
+        new_end = end_time + timedelta(minutes=30)
+
+        response = self.client.patch(
+            reverse("booking-update", kwargs={"booking_id": booking.id}),
+            {
+                "start_time": new_start.isoformat(),
+                "end_time": new_end.isoformat(),
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        booking.refresh_from_db()
+        self.assertEqual(booking.start_time, new_start)
+        self.assertEqual(booking.end_time, new_end)
+
+    def test_update_booking_rejects_overlap_with_other_booking(self):
+        other_start, other_end = self.future_range()
+        self.create_booking(user=self.other_user, start_time=other_start, end_time=other_end)
+
+        my_start = other_end + timedelta(minutes=30)
+        my_end = my_start + timedelta(hours=1)
+        booking = self.create_booking(start_time=my_start, end_time=my_end)
+
+        new_start = other_start + timedelta(minutes=15)
+        new_end = new_start + timedelta(hours=1)
+
+        response = self.client.patch(
+            reverse("booking-update", kwargs={"booking_id": booking.id}),
+            {
+                "start_time": new_start.isoformat(),
+                "end_time": new_end.isoformat(),
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        booking.refresh_from_db()
+        self.assertEqual(booking.start_time, my_start)
+
+    def test_cannot_update_other_users_booking(self):
+        start_time, end_time = self.future_range()
+        booking = self.create_booking(user=self.other_user, start_time=start_time, end_time=end_time)
+
+        new_start = start_time + timedelta(hours=1)
+        new_end = end_time + timedelta(hours=1)
+
+        response = self.client.patch(
+            reverse("booking-update", kwargs={"booking_id": booking.id}),
+            {
+                "start_time": new_start.isoformat(),
+                "end_time": new_end.isoformat(),
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
