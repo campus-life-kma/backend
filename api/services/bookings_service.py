@@ -230,6 +230,14 @@ class BookingsService:
 
         return bool(user.is_moderator and self.get_user_floor_id(user) == booking.resource.room.floor_id)
 
+    def get_booking(self, booking_id):
+        try:
+            return Booking.objects.select_related(
+                "user", "resource", "resource__room", "resource__room__floor", "status"
+            ).get(id=booking_id)
+        except Booking.DoesNotExist as exc:
+            raise BookingNotFoundError("Бронювання з таким id не знайдено.") from exc
+
     def get_resource(self, resource_id):
         try:
             return Resource.objects.select_related("room", "room__floor").get(id=resource_id)

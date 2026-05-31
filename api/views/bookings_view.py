@@ -643,3 +643,75 @@ class BookingUpdateView(APIView):
 
         response_serializer = BookingSerializer(booking, context={"request": request})
         return Response(response_serializer.data, status=status.HTTP_200_OK)
+
+
+class BookingDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=["Бронювання"],
+        summary="Отримання деталей бронювання",
+        description=(
+            "Повертає детальну інформацію про конкретне бронювання за його ID. "
+            "Включає дані про час, статус, ресурс (локацію) та користувача, який його створив."
+        ),
+        parameters=[
+            OpenApiParameter(
+                name="booking_id",
+                type=OpenApiTypes.INT,
+                location="path",
+                required=True,
+                description="ID бронювання, деталі якого потрібно отримати.",
+            )
+        ],
+        responses={
+            200: OpenApiResponse(
+                response=BookingSerializer,
+                description="Деталі бронювання успішно отримано.",
+                examples=[
+                    OpenApiExample(
+                        "Деталі бронювання",
+                        value={
+                            "id": 17,
+                            "user": {
+                                "id": "0c3a2cb7-7ef5-4c0f-9d36-1b7f0eb05c74",
+                                "display_name": "Богдан Змеул",
+                                "photo": "/media/avatars/bogdan.jpg",
+                            },
+                            "resource_id": 1,
+                            "resource_name": "Пральна машина 1",
+                            "room_id": 5,
+                            "room_name": "Пральня",
+                            "floor_id": 3,
+                            "start_time": "2026-05-23T18:00:00Z",
+                            "end_time": "2026-05-23T19:00:00Z",
+                            "status": "ACTIVE",
+                        },
+                        response_only=True,
+                    )
+                ],
+            ),
+            401: OpenApiResponse(description="Користувач не авторизований."),
+            404: OpenApiResponse(
+                response=dict,
+                description="Бронювання не знайдено.",
+                examples=[
+                    OpenApiExample(
+                        "Бронювання не знайдено",
+                        value={"detail": "Бронювання з таким id не знайдено."},
+                        response_only=True,
+                    )
+                ],
+            ),
+        },
+    )
+    def get(self, request, booking_id):
+        service = BookingsService()
+
+        try:
+            booking = service.get_booking(booking_id)
+        except BookingError as exc:
+            return Response({"detail": str(exc)}, status=get_booking_error_status(exc))
+
+        serializer = BookingSerializer(booking, context={"request": request})
+        return Response(serializer.data, status=status.HTTP_200_OK)

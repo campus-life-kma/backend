@@ -15,6 +15,7 @@ from api.views.bookings_view import (
     ResourceScheduleView,
     ResourceUnblockView,
     BookingUpdateView,
+    BookingDetailView,
 )
 from api.views.dictionaries_view import (
     FacultyListView,
@@ -67,6 +68,7 @@ urlpatterns = [
     path("bookings/me/", MyBookingsView.as_view(), name="bookings-me"),
     path("bookings/<int:booking_id>/cancel/", BookingCancelView.as_view(), name="booking-cancel"),
     path("users/<uuid:user_id>/", UserDetailView.as_view(), name="user-info"),
+    path("bookings/<int:booking_id>/", BookingDetailView.as_view(), name="booking-detail"),
     path("faculties/", FacultyListView.as_view(), name="faculty-list"),
     path("majors/", MajorListView.as_view(), name="major-list"),
     path("roles/", RoleListView.as_view(), name="role-list"),
