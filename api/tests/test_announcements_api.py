@@ -165,7 +165,7 @@ class AnnouncementsApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_get_announcement_target_types(self):
-        response = self.client.get(reverse("announcement-target-types"))
+        response = self.client.get(reverse("target-type-list"))
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         target_types = {item["type"] for item in response.data}
