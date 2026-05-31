@@ -3,6 +3,8 @@ from datetime import datetime, time, timedelta
 from django.db import transaction
 from django.utils import timezone
 
+from django.utils.dateparse import parse_date
+
 from api.models import Booking, BookingStatus, Resource
 
 
@@ -30,10 +32,10 @@ class BookingStatusNotFoundError(BookingError):
 
 
 class BookingsService:
-    def get_resource_schedule(self, resource_id):
+    def get_resource_schedule(self, resource_id, start_date_str=None, end_date_str=None):
         resource = self.get_resource(resource_id)
         active_status = self.get_status("ACTIVE")
-        start_range, end_range = self.get_schedule_range()
+        start_range, end_range = self._parse_date_range(start_date_str, end_date_str)
 
         return (
             Booking.objects.filter(
@@ -45,6 +47,31 @@ class BookingsService:
             .select_related("status")
             .order_by("start_time")
         )
+
+    def _parse_date_range(self, start_date_str, end_date_str):
+        current_timezone = timezone.get_current_timezone()
+
+        if start_date_str:
+            start_date = parse_date(start_date_str)
+            if not start_date:
+                raise BookingValidationError("Некоректний формат start_date. Використовуйте YYYY-MM-DD.")
+        else:
+            start_date = timezone.localdate()
+
+        if end_date_str:
+            end_date = parse_date(end_date_str)
+            if not end_date:
+                raise BookingValidationError("Некоректний формат end_date. Використовуйте YYYY-MM-DD.")
+        else:
+            end_date = start_date + timedelta(days=1)
+
+        if start_date > end_date:
+            raise BookingValidationError("Початкова дата не може бути більшою за кінцеву.")
+
+        start_range = timezone.make_aware(datetime.combine(start_date, time.min), current_timezone)
+        end_range = timezone.make_aware(datetime.combine(end_date, time.max), current_timezone)
+
+        return start_range, end_range
 
     def create_booking(self, user, validated_data):
         resource_id = validated_data["resource"].id
@@ -185,14 +212,3 @@ class BookingsService:
             return user.room.floor_id
 
         return None
-
-    def get_schedule_range(self):
-        current_date = timezone.localdate()
-        start_date = current_date
-        end_date = current_date + timedelta(days=1)
-        current_timezone = timezone.get_current_timezone()
-
-        start_range = timezone.make_aware(datetime.combine(start_date, time.min), current_timezone)
-        end_range = timezone.make_aware(datetime.combine(end_date, time.max), current_timezone)
-
-        return start_range, end_range

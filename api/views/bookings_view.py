@@ -45,8 +45,22 @@ class ResourceScheduleView(APIView):
                 type=OpenApiTypes.INT,
                 location="path",
                 required=True,
-                description="ID ресурсу, для якого потрібно отримати зайняті слоти на сьогодні та завтра.",
-            )
+                description="ID ресурсу, для якого потрібно отримати зайняті слоти.",
+            ),
+            OpenApiParameter(
+                name="start_date",
+                type=OpenApiTypes.DATE,
+                location="query",
+                required=False,
+                description="Початкова дата у форматі YYYY-MM-DD (за замовчуванням сьогодні).",
+            ),
+            OpenApiParameter(
+                name="end_date",
+                type=OpenApiTypes.DATE,
+                location="query",
+                required=False,
+                description="Кінцева дата у форматі YYYY-MM-DD (за замовчуванням завтра).",
+            ),
         ],
         responses={
             200: OpenApiResponse(
@@ -90,8 +104,11 @@ class ResourceScheduleView(APIView):
     def get(self, request, resource_id):
         service = BookingsService()
 
+        start_date = request.query_params.get("start_date")
+        end_date = request.query_params.get("end_date")
+
         try:
-            bookings = service.get_resource_schedule(resource_id)
+            bookings = service.get_resource_schedule(resource_id, start_date, end_date)
         except BookingError as exc:
             return Response({"detail": str(exc)}, status=get_booking_error_status(exc))
 
