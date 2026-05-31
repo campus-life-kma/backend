@@ -5,12 +5,6 @@ from api.models import Announcement, Floor, Room, TargetType, User
 from api.serializers.user_serializer import UserMapSerializer
 
 
-class TargetTypeSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = TargetType
-        fields = ["id", "type"]
-
-
 class AnnouncementSerializer(serializers.ModelSerializer):
     creator = UserMapSerializer(read_only=True, help_text="Автор оголошення")
     target_type = serializers.CharField(source="target_type.type", read_only=True, help_text="Тип аудиторії оголошення")

@@ -5,7 +5,6 @@ from api.views.announcements_view import (
     ActiveAnnouncementsView,
     AnnouncementCreateView,
     AnnouncementReadView,
-    AnnouncementTargetTypesView,
 )
 from api.views.auth_view import DevLoginView, LoginView, CustomTokenRefreshView
 from api.views.bookings_view import (
@@ -15,6 +14,15 @@ from api.views.bookings_view import (
     ResourceBlockView,
     ResourceScheduleView,
     ResourceUnblockView,
+)
+from api.views.dictionaries_view import (
+    FacultyListView,
+    MajorListView,
+    RoleListView,
+    TargetTypeListView,
+    DormitoryListView,
+    FloorListView,
+    RoomListView,
 )
 from api.views.locations_view import FloorsView, FloorMapDataView
 from api.views.presence_view import PresenceCheckInView, PresenceGoHomeView
@@ -28,6 +36,7 @@ from api.views.socials_view import (
     SocialSharingRequestDeleteView,
     SocialSharingRequestDoneView,
 )
+from api.views.user_view import UserDetailView
 
 urlpatterns = [
     path("auth/refresh/", CustomTokenRefreshView.as_view(), name="token_refresh"),
@@ -47,7 +56,6 @@ urlpatterns = [
     ),
     path("sharing-requests/<int:request_id>/", SocialSharingRequestDeleteView.as_view(), name="sharing-request-delete"),
     path("announcements/active/", ActiveAnnouncementsView.as_view(), name="announcements-active"),
-    path("announcements/target-types/", AnnouncementTargetTypesView.as_view(), name="announcement-target-types"),
     path("announcements/<int:announcement_id>/read/", AnnouncementReadView.as_view(), name="announcement-read"),
     path("announcements/", AnnouncementCreateView.as_view(), name="announcement-create"),
     path("resources/<int:resource_id>/schedule/", ResourceScheduleView.as_view(), name="resource-schedule"),
@@ -56,6 +64,14 @@ urlpatterns = [
     path("bookings/", BookingCreateView.as_view(), name="booking-create"),
     path("bookings/me/", MyBookingsView.as_view(), name="bookings-me"),
     path("bookings/<int:booking_id>/cancel/", BookingCancelView.as_view(), name="booking-cancel"),
+    path("users/<uuid:user_id>/", UserDetailView.as_view(), name="user-info"),
+    path("faculties/", FacultyListView.as_view(), name="faculty-list"),
+    path("majors/", MajorListView.as_view(), name="major-list"),
+    path("roles/", RoleListView.as_view(), name="role-list"),
+    path("target-types/", TargetTypeListView.as_view(), name="target-type-list"),
+    path("dormitories/", DormitoryListView.as_view(), name="dormitory-list"),
+    path("floors/", FloorListView.as_view(), name="floor-list"),
+    path("rooms/", RoomListView.as_view(), name="room-list"),
 ]
 
 if settings.DEBUG:
