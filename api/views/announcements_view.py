@@ -5,11 +5,9 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from api.models import TargetType
 from api.serializers.announcements_serializer import (
     AnnouncementCreateSerializer,
     AnnouncementSerializer,
-    TargetTypeSerializer,
 )
 from api.services.announcements_service import (
     AnnouncementEmailSendError,
@@ -31,39 +29,6 @@ def get_announcement_error_status(error):
         return status.HTTP_403_FORBIDDEN
 
     return status.HTTP_400_BAD_REQUEST
-
-
-class AnnouncementTargetTypesView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    @extend_schema(
-        tags=["Оголошення"],
-        summary="Отримання типів аудиторії оголошень",
-        description="Повертає доступні значення target_type для створення оголошень.",
-        responses={
-            200: OpenApiResponse(
-                response=TargetTypeSerializer(many=True),
-                description="Типи аудиторії оголошень отримано.",
-                examples=[
-                    OpenApiExample(
-                        "Типи аудиторії",
-                        value=[
-                            {"id": 1, "type": "GLOBAL"},
-                            {"id": 2, "type": "FLOOR"},
-                            {"id": 3, "type": "ROOM"},
-                            {"id": 4, "type": "SPECIFIC_USERS"},
-                        ],
-                        response_only=True,
-                    )
-                ],
-            ),
-            401: OpenApiResponse(description="Користувач не авторизований."),
-        },
-    )
-    def get(self, request):
-        target_types = TargetType.objects.order_by("id")
-        serializer = TargetTypeSerializer(target_types, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class ActiveAnnouncementsView(APIView):
