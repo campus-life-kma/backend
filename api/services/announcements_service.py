@@ -104,7 +104,8 @@ class AnnouncementsService:
 
             if self.get_user_floor_id(user) != target_floor.id:
                 raise AnnouncementPermissionDeniedError(
-                    "Голова поверху може створювати оголошення лише для свого поверху.")
+                    "Голова поверху може створювати оголошення лише для свого поверху."
+                )
 
         elif target_type.type == "SPECIFIC_USERS":
             target_users = validated_data.get("target_users", [])
@@ -113,7 +114,8 @@ class AnnouncementsService:
             for t_user in target_users:
                 if self.get_user_floor_id(t_user) != mod_floor_id:
                     raise AnnouncementPermissionDeniedError(
-                        "Голова поверху може сповіщати лише мешканців свого поверху.")
+                        "Голова поверху може сповіщати лише мешканців свого поверху."
+                    )
         else:
             raise AnnouncementPermissionDeniedError(
                 "Голова поверху може створювати оголошення лише для свого поверху або конкретних мешканців."
