@@ -63,6 +63,31 @@ class UserFullSerializer(serializers.ModelSerializer):
             return obj.full_name
         return "Новий мешканець"
 
+class UserUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = [
+            "full_name",
+            "photo",
+            "status",
+            "bio"
+        ]
+
+class AdminUserUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = [
+            "role",
+            "full_name",
+            "email",
+            "photo",
+            "room",
+            "major",
+            "year",
+            "status",
+            "bio",
+        ]
+
 class UserMapSerializer(serializers.ModelSerializer):
     display_name = serializers.SerializerMethodField()
 

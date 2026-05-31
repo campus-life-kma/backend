@@ -28,7 +28,7 @@ from api.views.socials_view import (
     SocialSharingRequestDeleteView,
     SocialSharingRequestDoneView,
 )
-from api.views.user_view import GetUserView
+from api.views.user_view import UserDetailView
 
 urlpatterns = [
     path("auth/refresh/", CustomTokenRefreshView.as_view(), name="token_refresh"),
@@ -57,7 +57,7 @@ urlpatterns = [
     path("bookings/", BookingCreateView.as_view(), name="booking-create"),
     path("bookings/me/", MyBookingsView.as_view(), name="bookings-me"),
     path("bookings/<int:booking_id>/cancel/", BookingCancelView.as_view(), name="booking-cancel"),
-    path("users/<uuid:user_id>/", GetUserView.as_view(), name="user-info"),
+    path("users/<uuid:user_id>/", UserDetailView.as_view(), name="user-info"),
 ]
 
 if settings.DEBUG:
