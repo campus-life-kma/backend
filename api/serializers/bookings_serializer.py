@@ -1,4 +1,5 @@
 from datetime import timedelta
+from django.utils import timezone
 
 from rest_framework import serializers
 
@@ -8,6 +9,7 @@ from api.serializers.user_serializer import UserMapSerializer
 
 class BookingCreateSerializer(serializers.Serializer):
     max_booking_duration = timedelta(hours=3)
+    max_booking_advance = timedelta(days=30)
 
     resource = serializers.PrimaryKeyRelatedField(
         queryset=Resource.objects.all(),
@@ -34,11 +36,21 @@ class BookingCreateSerializer(serializers.Serializer):
     )
 
     def validate(self, attrs):
+        now = timezone.now()
+
+        if attrs["start_time"] < now:
+            raise serializers.ValidationError({"start_time": "Не можна створювати бронювання в минулому."})
+
         if attrs["end_time"] <= attrs["start_time"]:
             raise serializers.ValidationError({"end_time": "Час завершення має бути пізніше часу початку."})
 
         if attrs["end_time"] - attrs["start_time"] > self.max_booking_duration:
             raise serializers.ValidationError({"end_time": "Бронювання не може тривати довше 3 годин."})
+
+        if attrs["start_time"] > now + self.max_booking_advance:
+            raise serializers.ValidationError(
+                {"start_time": "Не можна створювати бронювання більше ніж на 30 днів уперед."}
+            )
 
         return attrs
 
@@ -66,6 +78,37 @@ class BookingSerializer(serializers.ModelSerializer):
             "end_time",
             "status",
         ]
+
+
+class BookingUpdateSerializer(serializers.Serializer):
+    max_booking_duration = timedelta(hours=3)
+    max_booking_advance = timedelta(days=30)
+
+    start_time = serializers.DateTimeField(
+        help_text="Новий час початку", error_messages={"required": "Вкажіть новий час початку."}
+    )
+    end_time = serializers.DateTimeField(
+        help_text="Новий час завершення", error_messages={"required": "Вкажіть новий час завершення."}
+    )
+
+    def validate(self, attrs):
+        now = timezone.now()
+
+        if attrs["start_time"] < now:
+            raise serializers.ValidationError({"start_time": "Не можна перенести бронювання на минулий час."})
+
+        if attrs["end_time"] <= attrs["start_time"]:
+            raise serializers.ValidationError({"end_time": "Час завершення має бути пізніше часу початку."})
+
+        if attrs["end_time"] - attrs["start_time"] > self.max_booking_duration:
+            raise serializers.ValidationError({"end_time": "Бронювання не може тривати довше 3 годин."})
+
+        if attrs["start_time"] > now + self.max_booking_advance:
+            raise serializers.ValidationError(
+                {"start_time": "Не можна переносити бронювання більше ніж на 30 днів уперед."}
+            )
+
+        return attrs
 
 
 class ResourceScheduleSerializer(serializers.ModelSerializer):

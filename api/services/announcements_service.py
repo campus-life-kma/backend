@@ -97,15 +97,29 @@ class AnnouncementsService:
         if not user.is_moderator:
             raise AnnouncementPermissionDeniedError("У вас немає прав для створення оголошень.")
 
-        if target_type.type != "FLOOR":
-            raise AnnouncementPermissionDeniedError("Голова поверху може створювати оголошення лише для свого поверху.")
+        if target_type.type == "FLOOR":
+            target_floor = validated_data.get("target_floor")
+            if not target_floor:
+                raise AnnouncementValidationError("Для оголошення на поверх необхідно обрати поверх.")
 
-        target_floor = validated_data.get("target_floor")
-        if not target_floor:
-            raise AnnouncementValidationError("Для оголошення на поверх необхідно обрати поверх.")
+            if self.get_user_floor_id(user) != target_floor.id:
+                raise AnnouncementPermissionDeniedError(
+                    "Голова поверху може створювати оголошення лише для свого поверху."
+                )
 
-        if self.get_user_floor_id(user) != target_floor.id:
-            raise AnnouncementPermissionDeniedError("Голова поверху може створювати оголошення лише для свого поверху.")
+        elif target_type.type == "SPECIFIC_USERS":
+            target_users = validated_data.get("target_users", [])
+            mod_floor_id = self.get_user_floor_id(user)
+
+            for t_user in target_users:
+                if self.get_user_floor_id(t_user) != mod_floor_id:
+                    raise AnnouncementPermissionDeniedError(
+                        "Голова поверху може сповіщати лише мешканців свого поверху."
+                    )
+        else:
+            raise AnnouncementPermissionDeniedError(
+                "Голова поверху може створювати оголошення лише для свого поверху або конкретних мешканців."
+            )
 
     def can_user_see_announcement(self, user, announcement):
         target_type = announcement.target_type.type
