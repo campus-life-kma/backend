@@ -5,7 +5,8 @@ from django.utils import timezone
 
 from django.utils.dateparse import parse_date
 
-from api.models import Booking, BookingStatus, Resource
+from api.models import Booking, BookingStatus, Resource, TargetType
+from api.services.announcements_service import AnnouncementsService
 
 
 class BookingError(Exception):
@@ -147,6 +148,16 @@ class BookingsService:
             booking.status = cancelled_status
             booking.save(update_fields=["status"])
 
+            if user.id != booking.user.id:
+                start_str = timezone.localtime(booking.start_time).strftime("%d.%m.%Y %H:%M")
+                subject = f"Скасування бронювання: {booking.resource.name}"
+                message = (
+                    f"Користувач {user.full_name} скасував ваше бронювання ресурсу '{booking.resource.name}', "
+                    f"яке було заплановано на {start_str}.\n\n"
+                    f"За питаннями звертайтеся за адресою: {user.email}"
+                )
+                self._send_system_announcement(user, [booking.user], subject, message)
+
         return booking
 
     def update_booking_time(self, user, booking_id, validated_data):
@@ -199,7 +210,7 @@ class BookingsService:
             resource.is_blocked = True
             resource.save(update_fields=["is_blocked"])
 
-            cancelled_count = self.cancel_active_resource_bookings(resource)
+            cancelled_count = self.cancel_active_resource_bookings(resource, actor=user)
 
         return resource, cancelled_count
 
@@ -214,15 +225,30 @@ class BookingsService:
 
         return resource
 
-    def cancel_active_resource_bookings(self, resource):
+    def cancel_active_resource_bookings(self, resource, actor=None):
         active_status = self.get_status("ACTIVE")
         cancelled_status = self.get_status("CANCELLED")
 
-        return Booking.objects.filter(
+        bookings_to_cancel = Booking.objects.filter(
             resource=resource,
             status=active_status,
             end_time__gt=timezone.now(),
-        ).update(status=cancelled_status)
+        ).select_related("user")
+
+        users_to_notify = list({b.user for b in bookings_to_cancel if actor and b.user.id != actor.id})
+
+        count = bookings_to_cancel.update(status=cancelled_status)
+
+        if actor and users_to_notify:
+            subject = f"Увага: Ресурс '{resource.name}' заблоковано"
+            message = (
+                f"Користувач {actor.full_name} заблокував ресурс '{resource.name}'. "
+                f"Усі ваші майбутні бронювання на цей ресурс було автоматично скасовано.\n\n"
+                f"За питаннями звертайтеся за адресою: {actor.email}"
+            )
+            self._send_system_announcement(actor, users_to_notify, subject, message)
+
+        return count
 
     def can_cancel_booking(self, user, booking):
         if user.is_admin or booking.user_id == user.id:
@@ -261,3 +287,21 @@ class BookingsService:
             return user.room.floor_id
 
         return None
+
+    def _send_system_announcement(self, actor, target_users, title, content):
+        try:
+            target_type = TargetType.objects.get(type="SPECIFIC_USERS")
+        except TargetType.DoesNotExist:
+            return
+
+        announcement_data = {
+            "target_type": target_type,
+            "title": title,
+            "content": content,
+            "target_users": target_users,
+        }
+
+        try:
+            AnnouncementsService().create_announcement(actor, announcement_data)
+        except Exception:
+            pass
