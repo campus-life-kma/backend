@@ -51,9 +51,6 @@ class BookingsService:
         start_time = validated_data["start_time"]
         end_time = validated_data["end_time"]
 
-        if start_time <= timezone.now():
-            raise BookingValidationError("Не можна створити бронювання в минулому.")
-
         with transaction.atomic():
             try:
                 resource = (
