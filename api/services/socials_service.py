@@ -260,9 +260,11 @@ class SocialsService:
 
     def delete_event(self, user, event_id):
         try:
-            event = (SocialEvent.objects.select_related("creator", "room", "room__floor", "floor")
-                     .prefetch_related("participants")
-                     .get(id=event_id))
+            event = (
+                SocialEvent.objects.select_related("creator", "room", "room__floor", "floor")
+                .prefetch_related("participants")
+                .get(id=event_id)
+            )
         except SocialEvent.DoesNotExist as exc:
             raise SocialNotFoundError("Подію з таким id не знайдено.") from exc
 
@@ -330,7 +332,8 @@ class SocialsService:
             if user.id != sharing_request.creator.id:
                 subject = f"Скасування запиту: {sharing_request.title}"
                 message = (
-                    f"Модератор/Адміністратор {user.full_name} скасував ваш запит на шеринг '{sharing_request.title}'.\n\n"
+                    f"Модератор/Адміністратор {user.full_name} "
+                    f"скасував ваш запит на шеринг '{sharing_request.title}'.\n\n"
                     f"За питаннями звертайтеся за адресою: {user.email}"
                 )
                 self._send_system_announcement(user, [sharing_request.creator], subject, message)
