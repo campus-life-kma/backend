@@ -5,12 +5,17 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from api.models import SocialSharingRequest, SocialEvent
 from api.serializers.socials_serializer import (
     SocialEventCreateSerializer,
     SocialEventDetailSerializer,
     SocialEventFullDetailSerializer,
     SocialSharingRequestCreateSerializer,
     SocialSharingRequestDetailSerializer,
+    SocialEventFeedSerializer,
+    SocialSharingRequestFeedSerializer,
+    SocialSharingRequestUpdateSerializer,
+    SocialEventUpdateSerializer,
 )
 from api.services.socials_service import (
     SocialAccessDeniedError,
@@ -45,7 +50,11 @@ class FeedView(APIView):
 
     @extend_schema(
         tags=["Соціальна стрічка"],
-        summary="Отримання соціальної стрічки",
+        summary="Отримання соціальної стрічки з фільтрацією та сортуванням",
+        description=(
+            "Повертає об'єднану стрічку подій та запитів на шеринг. "
+            "Підтримує фільтрацію за типами сутностей, датами, поверхами та станом активності."
+        ),
         parameters=[
             OpenApiParameter(
                 name="page",
@@ -53,7 +62,55 @@ class FeedView(APIView):
                 location="path",
                 required=True,
                 description="Номер сторінки стрічки",
-            )
+            ),
+            OpenApiParameter(
+                name="item_type",
+                type=OpenApiTypes.STR,
+                location="query",
+                required=False,
+                enum=["all", "event", "sharing_request"],
+                default="all",
+                description="Фільтр типу карток: тільки події, тільки шеринг або все разом.",
+            ),
+            OpenApiParameter(
+                name="start_date",
+                type=OpenApiTypes.DATE,
+                location="query",
+                required=False,
+                description="Початкова дата діапазону (YYYY-MM-DD). Працює тільки якщо item_type = 'event' або 'all'.",
+            ),
+            OpenApiParameter(
+                name="end_date",
+                type=OpenApiTypes.DATE,
+                location="query",
+                required=False,
+                description="Кінцева дата діапазону (YYYY-MM-DD). Працює тільки якщо item_type = 'event' або 'all'.",
+            ),
+            OpenApiParameter(
+                name="is_active",
+                type=OpenApiTypes.BOOL,
+                location="query",
+                required=False,
+                description="Якщо true — повертає тільки ті івенти,"
+                "які проходять прямо зараз (start_time <= NOW <= end_time).",
+            ),
+            OpenApiParameter(
+                name="floor_id",
+                type=OpenApiTypes.STR,
+                location="query",
+                required=False,
+                description="Фільтр по поверху."
+                "Передайте ID конкретного поверху або рядок 'my' для динамічного фільтру по поверху поточного юзера.",
+            ),
+            OpenApiParameter(
+                name="ordering",
+                type=OpenApiTypes.STR,
+                location="query",
+                required=False,
+                enum=["created_at", "start_time"],
+                default="created_at",
+                description="Сортування: 'created_at' (нові згори) або 'start_time' (найближчі івенти згори).",
+            ),
         ],
         responses={
             200: OpenApiResponse(
@@ -71,25 +128,26 @@ class FeedView(APIView):
                                     "type": "event",
                                     "id": 12,
                                     "title": "Граємо в Мафію",
-                                    "description": "Збираємось у спільній кімнаті.",
                                     "start_time": "2026-05-23T20:00:00Z",
-                                    "end_time": "2026-05-23T22:00:00Z",
-                                    "max_person": 8,
+                                    "creator": {
+                                        "id": "0c3a2cb7-7ef5-4c0f-9d36-1b7f0eb05c74",
+                                        "display_name": "Богдан Змеул",
+                                        "photo": "/media/avatars/bogdan.jpg",
+                                    },
                                     "is_faculty_only": False,
                                     "is_major_only": False,
-                                    "participants_count": 3,
-                                    "room_id": 5,
-                                    "room_name": "Спільна кімната",
-                                    "floor_id": 3,
-                                    "custom_location": None,
                                 },
                                 {
                                     "type": "sharing_request",
                                     "id": 7,
-                                    "title": "Позичте зарядку для ноутбука на дві години",
+                                    "title": "Позичте зарядку для ноутбука",
                                     "status": "ACTIVE",
                                     "created_at": "2026-05-23T18:10:00Z",
-                                    "floor_id": 3,
+                                    "creator": {
+                                        "id": "6a6d7bb9-9210-4f62-a5df-c7c9d2c6f9a1",
+                                        "display_name": "Олена Петренко",
+                                        "photo": None,
+                                    },
                                 },
                             ],
                         },
@@ -101,15 +159,24 @@ class FeedView(APIView):
         },
     )
     def get(self, request, page):
+        filters = {
+            "item_type": request.query_params.get("item_type", "all"),
+            "start_date": request.query_params.get("start_date"),
+            "end_date": request.query_params.get("end_date"),
+            "is_active": request.query_params.get("is_active") == "true",
+            "floor_id": request.query_params.get("floor_id"),
+            "ordering": request.query_params.get("ordering", "created_at"),
+        }
+
         service = SocialsService()
-        feed = service.get_feed(request.user, page)
+        feed = service.get_feed(request.user, page, filters)
 
         results = []
         for _, item_type, item in feed["items"]:
             if item_type == "event":
-                results.append(SocialEventDetailSerializer(item, context={"request": request}).data)
+                results.append(SocialEventFeedSerializer(item, context={"request": request}).data)
             else:
-                results.append(SocialSharingRequestDetailSerializer(item, context={"request": request}).data)
+                results.append(SocialSharingRequestFeedSerializer(item, context={"request": request}).data)
 
         return Response(
             {
@@ -234,6 +301,7 @@ class SocialEventJoinView(APIView):
                             "description": "Збираємось у спільній кімнаті.",
                             "start_time": "2026-05-23T20:00:00Z",
                             "end_time": "2026-05-23T22:00:00Z",
+                            "created_at": "2026-05-21T15:30:00Z",
                             "max_person": 8,
                             "is_faculty_only": False,
                             "is_major_only": False,
@@ -335,6 +403,7 @@ class SocialEventLeaveView(APIView):
                             "description": "Збираємось у спільній кімнаті.",
                             "start_time": "2026-05-23T20:00:00Z",
                             "end_time": "2026-05-23T22:00:00Z",
+                            "created_at": "2026-05-21T15:30:00Z",
                             "max_person": 8,
                             "is_faculty_only": False,
                             "is_major_only": False,
@@ -379,7 +448,7 @@ class SocialEventLeaveView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
-class SocialEventDeleteView(APIView):
+class SocialEventDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
@@ -408,6 +477,7 @@ class SocialEventDeleteView(APIView):
                             "description": "Збираємось у спільній кімнаті, новачкам усе пояснимо на місці.",
                             "start_time": "2026-05-23T20:00:00Z",
                             "end_time": "2026-05-23T22:00:00Z",
+                            "created_at": "2026-05-21T15:30:00Z",
                             "max_person": 8,
                             "is_faculty_only": False,
                             "is_major_only": False,
@@ -521,6 +591,122 @@ class SocialEventDeleteView(APIView):
             return Response({"detail": str(exc)}, status=get_social_error_status(exc))
 
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @extend_schema(
+        tags=["Соціальна стрічка"],
+        summary="Редагування події",
+        description=(
+            "Дозволяє автору частково або повністю оновити інформацію про подію. "
+            "Можна передавати лише ті поля, які змінилися."
+        ),
+        request=SocialEventUpdateSerializer,
+        parameters=[
+            OpenApiParameter(
+                name="event_id",
+                type=OpenApiTypes.INT,
+                location="path",
+                required=True,
+                description="ID події, яку потрібно відредагувати.",
+            )
+        ],
+        examples=[
+            OpenApiExample(
+                "Часткове оновлення (наприклад, зміна часу)",
+                value={"title": "Нова назва для мафії", "end_time": "2026-05-23T23:00:00Z"},
+                request_only=True,
+            )
+        ],
+        responses={
+            200: OpenApiResponse(
+                response=SocialEventDetailSerializer,
+                description="Подію успішно оновлено.",
+                examples=[
+                    OpenApiExample(
+                        "Оновлена подія",
+                        value={
+                            "type": "event",
+                            "id": 12,
+                            "title": "Нова назва для мафії",
+                            "description": "Збираємось у спільній кімнаті, новачкам усе пояснимо на місці.",
+                            "start_time": "2026-05-23T20:00:00Z",
+                            "end_time": "2026-05-23T23:00:00Z",
+                            "created_at": "2026-05-21T15:30:00Z",
+                            "max_person": 8,
+                            "is_faculty_only": False,
+                            "is_major_only": False,
+                            "creator": {
+                                "id": "0c3a2cb7-7ef5-4c0f-9d36-1b7f0eb05c74",
+                                "display_name": "Богдан Змеул",
+                                "photo": "/media/avatars/bogdan.jpg",
+                            },
+                            "participants_count": 4,
+                            "room_id": 5,
+                            "room_name": "Спільна кімната",
+                            "floor_id": 3,
+                            "custom_location": None,
+                        },
+                        response_only=True,
+                    )
+                ],
+            ),
+            400: OpenApiResponse(
+                response=dict,
+                description="Помилка валідації даних.",
+                examples=[
+                    OpenApiExample(
+                        "Некоректний час",
+                        value={"start_time": ["Час початку події не може бути в минулому."]},
+                        response_only=True,
+                    ),
+                    OpenApiExample(
+                        "Локацію не знайдено",
+                        value={"detail": "Вкажіть хоча б одну локацію: кімнату, поверх або текстову назву місця."},
+                        response_only=True,
+                    ),
+                ],
+            ),
+            401: OpenApiResponse(description="Користувач не авторизований."),
+            403: OpenApiResponse(
+                response=dict,
+                description="Тільки автор може редагувати подію.",
+                examples=[
+                    OpenApiExample(
+                        "Недостатньо прав",
+                        value={"detail": "Тільки автор може редагувати цю подію."},
+                        response_only=True,
+                    )
+                ],
+            ),
+            404: OpenApiResponse(
+                response=dict,
+                description="Подію не знайдено.",
+                examples=[
+                    OpenApiExample(
+                        "Не знайдено",
+                        value={"detail": "Подію з таким id не знайдено."},
+                        response_only=True,
+                    )
+                ],
+            ),
+        },
+    )
+    def patch(self, request, event_id):
+        try:
+            event_instance = SocialEvent.objects.get(id=event_id)
+        except SocialEvent.DoesNotExist:
+            return Response({"detail": "Подію з таким id не знайдено."}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = SocialEventUpdateSerializer(event_instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+
+        service = SocialsService()
+        try:
+            event = service.update_event(request.user, event_id, serializer.validated_data)
+        except SocialError as exc:
+            return Response({"detail": str(exc)}, status=get_social_error_status(exc))
+
+        response_serializer = SocialEventDetailSerializer(event, context={"request": request})
+        return Response(response_serializer.data, status=status.HTTP_200_OK)
 
 
 class SocialSharingRequestCreateView(APIView):
@@ -689,7 +875,7 @@ class SocialSharingRequestDoneView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
-class SocialSharingRequestDeleteView(APIView):
+class SocialSharingRequestDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
@@ -774,3 +960,255 @@ class SocialSharingRequestDeleteView(APIView):
 
         serializer = SocialSharingRequestDetailSerializer(sharing_request, context={"request": request})
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        tags=["Соціальна стрічка"],
+        summary="Отримання детальної інформації про запит на шеринг",
+        description="Повертає повну інформацію про конкретний запит на шеринг за його ID.",
+        parameters=[
+            OpenApiParameter(
+                name="request_id",
+                type=OpenApiTypes.INT,
+                location="path",
+                required=True,
+                description="ID запиту на шеринг, який потрібно отримати.",
+            )
+        ],
+        responses={
+            200: OpenApiResponse(
+                response=SocialSharingRequestDetailSerializer,
+                description="Детальну інформацію про запит успішно отримано.",
+                examples=[
+                    OpenApiExample(
+                        "Деталі запиту на шеринг",
+                        value={
+                            "type": "sharing_request",
+                            "id": 7,
+                            "title": "Позичте зарядку для ноутбука на дві години",
+                            "creator": {
+                                "id": "0c3a2cb7-7ef5-4c0f-9d36-1b7f0eb05c74",
+                                "display_name": "Богдан Змеул",
+                                "photo": "/media/avatars/bogdan.jpg",
+                            },
+                            "status": "ACTIVE",
+                            "created_at": "2026-05-23T18:10:00Z",
+                            "floor_id": 3,
+                        },
+                        response_only=True,
+                    )
+                ],
+            ),
+            401: OpenApiResponse(description="Користувач не авторизований."),
+            404: OpenApiResponse(
+                response=dict,
+                description="Запит на шеринг не знайдено.",
+                examples=[
+                    OpenApiExample(
+                        "Запит не знайдено",
+                        value={"detail": "Запит на шеринг з таким id не знайдено."},
+                        response_only=True,
+                    )
+                ],
+            ),
+        },
+    )
+    def get(self, request, request_id):
+        service = SocialsService()
+
+        try:
+            sharing_request = service.get_sharing_request_detail(request.user, request_id)
+        except SocialError as exc:
+            return Response({"detail": str(exc)}, status=get_social_error_status(exc))
+
+        serializer = SocialSharingRequestDetailSerializer(sharing_request, context={"request": request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        tags=["Соціальна стрічка"],
+        summary="Редагування запиту на шеринг",
+        description="Дозволяє автору змінити заголовок/опис свого активного запиту на шеринг.",
+        request=SocialSharingRequestUpdateSerializer,
+        parameters=[
+            OpenApiParameter(
+                name="request_id",
+                type=OpenApiTypes.INT,
+                location="path",
+                required=True,
+                description="ID запиту на шеринг, який потрібно відредагувати.",
+            )
+        ],
+        examples=[
+            OpenApiExample(
+                "Оновлення заголовка",
+                value={"title": "Терміново позичте зарядку для ноутбука Type-C"},
+                request_only=True,
+            )
+        ],
+        responses={
+            200: OpenApiResponse(
+                response=SocialSharingRequestDetailSerializer,
+                description="Запит успішно оновлено.",
+                examples=[
+                    OpenApiExample(
+                        "Оновлений запит",
+                        value={
+                            "type": "sharing_request",
+                            "id": 7,
+                            "title": "Терміново позичте зарядку для ноутбука Type-C",
+                            "creator": {
+                                "id": "0c3a2cb7-7ef5-4c0f-9d36-1b7f0eb05c74",
+                                "display_name": "Богдан Змеул",
+                                "photo": "/media/avatars/bogdan.jpg",
+                            },
+                            "status": "ACTIVE",
+                            "created_at": "2026-05-23T18:10:00Z",
+                            "floor_id": 3,
+                        },
+                        response_only=True,
+                    )
+                ],
+            ),
+            400: OpenApiResponse(
+                response=dict,
+                description="Помилка валідації даних.",
+                examples=[
+                    OpenApiExample(
+                        "Порожнє поле",
+                        value={"title": ["Це поле не може бути порожнім."]},
+                        response_only=True,
+                    )
+                ],
+            ),
+            401: OpenApiResponse(description="Користувач не авторизований."),
+            403: OpenApiResponse(
+                response=dict,
+                description="Тільки автор може редагувати запит.",
+                examples=[
+                    OpenApiExample(
+                        "Недостатньо прав",
+                        value={"detail": "Тільки автор може редагувати цей запит."},
+                        response_only=True,
+                    )
+                ],
+            ),
+            404: OpenApiResponse(
+                response=dict,
+                description="Запит не знайдено.",
+                examples=[
+                    OpenApiExample(
+                        "Не знайдено",
+                        value={"detail": "Запит на шеринг з таким id не знайдено."},
+                        response_only=True,
+                    )
+                ],
+            ),
+        },
+    )
+    def patch(self, request, request_id):
+        try:
+            sharing_instance = SocialSharingRequest.objects.get(id=request_id)
+        except SocialSharingRequest.DoesNotExist:
+            return Response({"detail": "Запит на шеринг з таким id не знайдено."}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = SocialSharingRequestUpdateSerializer(sharing_instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+
+        service = SocialsService()
+        try:
+            sharing_request = service.update_sharing_request(request.user, request_id, serializer.validated_data)
+        except SocialError as exc:
+            return Response({"detail": str(exc)}, status=get_social_error_status(exc))
+
+        response_serializer = SocialSharingRequestDetailSerializer(sharing_request, context={"request": request})
+        return Response(response_serializer.data, status=status.HTTP_200_OK)
+
+
+class UserSocialProfileView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=["Соціальна стрічка"],
+        summary="Отримання соціальної активності користувача",
+        description=(
+            "Повертає три списки для сторінки профілю користувача: його запити на шеринг, "
+            "створені ним події та актуальні події, в яких він планує взяти участь (end_time > now). "
+            "Усі події фільтруються з урахуванням прав доступу користувача, який робить запит."
+        ),
+        parameters=[
+            OpenApiParameter(
+                name="user_id",
+                type=OpenApiTypes.UUID,
+                location="path",
+                required=True,
+                description="ID користувача, активність якого потрібно отримати.",
+            )
+        ],
+        responses={
+            200: OpenApiResponse(
+                response=dict,
+                description="Профіль успішно отримано.",
+                examples=[
+                    OpenApiExample(
+                        "Активність користувача",
+                        value={
+                            "sharing_requests": [
+                                {
+                                    "type": "sharing_request",
+                                    "id": 7,
+                                    "title": "Позичте зарядку для ноутбука",
+                                    "status": "ACTIVE",
+                                    "created_at": "2026-05-23T18:10:00Z",
+                                    "creator": {
+                                        "id": "0c3a2cb7-7ef5-4c0f-9d36-1b7f0eb05c74",
+                                        "display_name": "Богдан Змеул",
+                                        "photo": None,
+                                    },
+                                }
+                            ],
+                            "created_events": [
+                                {
+                                    "type": "event",
+                                    "id": 12,
+                                    "title": "Граємо в Мафію",
+                                    "start_time": "2026-05-23T20:00:00Z",
+                                    "creator": {
+                                        "id": "0c3a2cb7-7ef5-4c0f-9d36-1b7f0eb05c74",
+                                        "display_name": "Богдан Змеул",
+                                        "photo": None,
+                                    },
+                                    "is_faculty_only": False,
+                                    "is_major_only": False,
+                                }
+                            ],
+                            "participating_events": [],
+                        },
+                        response_only=True,
+                    )
+                ],
+            ),
+            401: OpenApiResponse(description="Користувач не авторизований."),
+            404: OpenApiResponse(description="Користувача не знайдено."),
+        },
+    )
+    def get(self, request, user_id):
+        service = SocialsService()
+
+        try:
+            activity = service.get_user_social_profile(request.user, user_id)
+        except SocialError as exc:
+            return Response({"detail": str(exc)}, status=get_social_error_status(exc))
+
+        return Response(
+            {
+                "sharing_requests": SocialSharingRequestFeedSerializer(
+                    activity["sharing_requests"], many=True, context={"request": request}
+                ).data,
+                "created_events": SocialEventFeedSerializer(
+                    activity["created_events"], many=True, context={"request": request}
+                ).data,
+                "participating_events": SocialEventFeedSerializer(
+                    activity["participating_events"], many=True, context={"request": request}
+                ).data,
+            },
+            status=status.HTTP_200_OK,
+        )

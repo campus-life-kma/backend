@@ -69,10 +69,11 @@ class AnnouncementsService:
         return announcement
 
     def create_announcement(self, user, validated_data):
-        target_users = validated_data.pop("target_users", [])
         target_type = validated_data["target_type"]
 
         self.validate_create_permissions(user, target_type, validated_data)
+
+        target_users = validated_data.pop("target_users", [])
 
         expires_at = validated_data.get("expires_at")
         if expires_at and expires_at <= timezone.now():

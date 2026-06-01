@@ -1,9 +1,13 @@
+from datetime import datetime, time
+
 from django.db import transaction
 from django.db.models import Count, F, Q, Value
 from django.db.models.fields import CharField
 from django.utils import timezone
+from django.utils.dateparse import parse_date
 
-from api.models import SocialEvent, SocialSharingRequest, SocialSharingStatus
+from api.models import SocialEvent, SocialSharingRequest, SocialSharingStatus, TargetType
+from api.services.announcements_service import AnnouncementsService
 
 
 class SocialError(Exception):
@@ -40,13 +44,14 @@ class SocialStatusNotFoundError(SocialError):
 class SocialsService:
     page_size = 20
 
-    def get_feed(self, user, page):
+    def get_feed(self, user, page, filters: dict):
         page = max(page, 1)
         now = timezone.now()
 
         start = (page - 1) * self.page_size
         end = start + self.page_size
-        rows = list(self.get_feed_rows(user, now)[start : end + 1])
+
+        rows = list(self.get_feed_rows(user, now, filters)[start : end + 1])
         page_rows = rows[: self.page_size]
 
         return {
@@ -56,22 +61,89 @@ class SocialsService:
             "items": self.resolve_feed_items(page_rows),
         }
 
-    def get_feed_rows(self, user, now):
-        visible_events = self.get_visible_events_queryset(user, now).annotate(
+    def get_feed_rows(self, user, now, filters: dict):
+        item_type = filters.get("item_type", "all")
+        ordering = filters.get("ordering", "created_at")
+
+        event_sort_field = "start_time" if ordering == "start_time" else "created_at"
+        sharing_sort_field = "created_at"
+
+        event_rows = None
+        sharing_rows = None
+
+        if item_type in ["all", "event"]:
+            event_rows = self._get_event_rows(user, now, filters, event_sort_field)
+
+        if item_type in ["all", "sharing_request"]:
+            sharing_rows = self._get_sharing_rows(user, filters, sharing_sort_field)
+
+        if event_rows is not None and sharing_rows is not None:
+            combined = event_rows.union(sharing_rows, all=True)
+        elif event_rows is not None:
+            combined = event_rows
+        elif sharing_rows is not None:
+            combined = sharing_rows
+        else:
+            return SocialEvent.objects.none()
+
+        if ordering == "start_time":
+            return combined.order_by("sort_time")
+        return combined.order_by("-sort_time")
+
+    def _get_event_rows(self, user, now, filters: dict, sort_field: str):
+        events_qs = self.get_visible_events_queryset(user, now)
+
+        if filters.get("start_date") or filters.get("end_date"):
+            start_dt, end_dt = self._parse_date_bounds(filters.get("start_date"), filters.get("end_date"))
+            if start_dt:
+                events_qs = events_qs.filter(start_time__gte=start_dt)
+            if end_dt:
+                events_qs = events_qs.filter(start_time__lte=end_dt)
+
+        if filters.get("is_active"):
+            events_qs = events_qs.filter(start_time__lte=now, end_time__gte=now)
+
+        floor_filter = filters.get("floor_id")
+        if floor_filter:
+            target_floor_id = user.room.floor_id if floor_filter == "my" else floor_filter
+            if target_floor_id:
+                events_qs = events_qs.filter(Q(floor_id=target_floor_id) | Q(room__floor_id=target_floor_id))
+
+        return events_qs.annotate(
             item_type=Value("event", output_field=CharField()),
             item_id=F("id"),
-            sort_time=F("start_time"),
-        )
-        active_sharing_requests = SocialSharingRequest.objects.filter(status__status="ACTIVE").annotate(
+            sort_time=F(sort_field),
+        ).values("item_type", "item_id", "sort_time")
+
+    def _get_sharing_rows(self, user, filters: dict, sort_field: str):
+        sharing_qs = SocialSharingRequest.objects.filter(status__status="ACTIVE")
+
+        floor_filter = filters.get("floor_id")
+        if floor_filter:
+            target_floor_id = user.room.floor_id if floor_filter == "my" else floor_filter
+            if target_floor_id:
+                sharing_qs = sharing_qs.filter(creator__room__floor_id=target_floor_id)
+
+        return sharing_qs.annotate(
             item_type=Value("sharing_request", output_field=CharField()),
             item_id=F("id"),
-            sort_time=F("created_at"),
-        )
+            sort_time=F(sort_field),
+        ).values("item_type", "item_id", "sort_time")
 
-        event_rows = visible_events.values("item_type", "item_id", "sort_time")
-        sharing_rows = active_sharing_requests.values("item_type", "item_id", "sort_time")
+    def _parse_date_bounds(self, start_str, end_str):
+        current_timezone = timezone.get_current_timezone()
+        start_dt, end_dt = None, None
 
-        return event_rows.union(sharing_rows, all=True).order_by("-sort_time")
+        if start_str:
+            p_date = parse_date(start_str)
+            if p_date:
+                start_dt = timezone.make_aware(datetime.combine(p_date, time.min), current_timezone)
+        if end_str:
+            p_date = parse_date(end_str)
+            if p_date:
+                end_dt = timezone.make_aware(datetime.combine(p_date, time.max), current_timezone)
+
+        return start_dt, end_dt
 
     def get_visible_events_queryset(self, user, now):
         user_faculty_id = self.get_faculty_id(user)
@@ -144,6 +216,14 @@ class SocialsService:
 
         return event
 
+    def get_sharing_request_detail(self, user, request_id):
+        try:
+            return SocialSharingRequest.objects.select_related(
+                "creator", "creator__room", "creator__room__floor", "status"
+            ).get(id=request_id)
+        except SocialSharingRequest.DoesNotExist as exc:
+            raise SocialNotFoundError("Запит на шеринг з таким id не знайдено.") from exc
+
     def join_event(self, user, event_id):
         now = timezone.now()
 
@@ -180,14 +260,40 @@ class SocialsService:
 
     def delete_event(self, user, event_id):
         try:
-            event = SocialEvent.objects.select_related("creator", "room", "room__floor", "floor").get(id=event_id)
+            event = (
+                SocialEvent.objects.select_related("creator", "room", "room__floor", "floor")
+                .prefetch_related("participants")
+                .get(id=event_id)
+            )
         except SocialEvent.DoesNotExist as exc:
             raise SocialNotFoundError("Подію з таким id не знайдено.") from exc
 
         if not self.can_manage_event(user, event):
             raise SocialPermissionDeniedError("Ви не маєте прав для видалення цієї події.")
 
-        event.delete()
+        users_to_notify = [p for p in event.participants.all() if p.id != user.id]
+
+        event_title = event.title
+        creator_id = event.creator.id
+
+        with transaction.atomic():
+            event.delete()
+
+            if users_to_notify:
+                subject = f"Скасування події: {event_title}"
+
+                if user.id == creator_id:
+                    message = (
+                        f"Автор {user.full_name} скасував подію '{event_title}', у якій ви планували взяти участь.\n\n"
+                        f"За питаннями звертайтеся за адресою: {user.email}"
+                    )
+                else:
+                    message = (
+                        f"Модератор/Адміністратор {user.full_name} видалив подію '{event_title}'.\n\n"
+                        f"За питаннями звертайтеся за адресою: {user.email}"
+                    )
+
+                self._send_system_announcement(user, users_to_notify, subject, message)
 
     def create_sharing_request(self, user, validated_data):
         status = self.get_status("ACTIVE")
@@ -219,9 +325,38 @@ class SocialsService:
         if not self.can_manage_sharing_request(user, sharing_request):
             raise SocialPermissionDeniedError("Ви не маєте прав для видалення цього запиту.")
 
-        sharing_request.status = self.get_status("CANCELLED")
-        sharing_request.save(update_fields=["status"])
+        with transaction.atomic():
+            sharing_request.status = self.get_status("CANCELLED")
+            sharing_request.save(update_fields=["status"])
+
+            if user.id != sharing_request.creator.id:
+                subject = f"Скасування запиту: {sharing_request.title}"
+                message = (
+                    f"Модератор/Адміністратор {user.full_name} "
+                    f"скасував ваш запит на шеринг '{sharing_request.title}'.\n\n"
+                    f"За питаннями звертайтеся за адресою: {user.email}"
+                )
+                self._send_system_announcement(user, [sharing_request.creator], subject, message)
+
         return sharing_request
+
+    def _send_system_announcement(self, actor, target_users, title, content):
+        try:
+            target_type = TargetType.objects.get(type="SPECIFIC_USERS")
+        except TargetType.DoesNotExist:
+            return
+
+        announcement_data = {
+            "target_type": target_type,
+            "title": title,
+            "content": content,
+            "target_users": target_users,
+        }
+
+        try:
+            AnnouncementsService().create_announcement(actor, announcement_data)
+        except Exception as exc:
+            raise SocialError("Не вдалося надіслати сповіщення користувачам. Видалення скасовано.") from exc
 
     def get_status(self, status_name):
         try:
@@ -275,3 +410,75 @@ class SocialsService:
             return user.major.faculty_id
 
         return None
+
+    def get_user_social_profile(self, request_user, target_user_id):
+        from django.contrib.auth import get_user_model
+
+        User = get_user_model()
+
+        try:
+            target_user = User.objects.get(id=target_user_id)
+        except User.DoesNotExist as exc:
+            raise SocialNotFoundError("Користувача з таким id не знайдено.") from exc
+
+        now = timezone.now()
+
+        sharing_requests = (
+            SocialSharingRequest.objects.filter(creator=target_user)
+            .select_related("creator", "creator__room", "creator__room__floor", "status")
+            .order_by("-created_at")
+        )
+
+        user_faculty_id = self.get_faculty_id(request_user)
+
+        visible_events = (
+            SocialEvent.objects.select_related(
+                "creator", "creator__major", "creator__major__faculty", "room", "room__floor", "floor"
+            )
+            .filter(Q(is_faculty_only=False) | Q(creator__major__faculty_id=user_faculty_id))
+            .filter(Q(is_major_only=False) | Q(creator__major_id=request_user.major_id))
+        )
+
+        created_events = visible_events.filter(creator=target_user).order_by("-start_time")
+
+        participating_events = (
+            visible_events.filter(participants=target_user, end_time__gt=now)
+            .exclude(creator=target_user)
+            .order_by("start_time")
+        )
+
+        return {
+            "sharing_requests": sharing_requests,
+            "created_events": created_events,
+            "participating_events": participating_events,
+        }
+
+    def update_event(self, user, event_id, validated_data):
+        try:
+            event = SocialEvent.objects.get(id=event_id)
+        except SocialEvent.DoesNotExist as exc:
+            raise SocialNotFoundError("Подію з таким id не знайдено.") from exc
+
+        if event.creator.id != user.id:
+            raise SocialPermissionDeniedError("Тільки автор може редагувати цю подію.")
+
+        for attr, value in validated_data.items():
+            setattr(event, attr, value)
+
+        event.save()
+        return event
+
+    def update_sharing_request(self, user, request_id, validated_data):
+        try:
+            sharing_request = SocialSharingRequest.objects.get(id=request_id)
+        except SocialSharingRequest.DoesNotExist as exc:
+            raise SocialNotFoundError("Запит на шеринг з таким id не знайдено.") from exc
+
+        if sharing_request.creator.id != user.id:
+            raise SocialPermissionDeniedError("Тільки автор може редагувати цей запит.")
+
+        for attr, value in validated_data.items():
+            setattr(sharing_request, attr, value)
+
+        sharing_request.save()
+        return sharing_request

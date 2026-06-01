@@ -31,12 +31,13 @@ from api.views.presence_view import PresenceCheckInView, PresenceGoHomeView
 from api.views.socials_view import (
     FeedView,
     SocialEventCreateView,
-    SocialEventDeleteView,
     SocialEventJoinView,
     SocialEventLeaveView,
     SocialSharingRequestCreateView,
-    SocialSharingRequestDeleteView,
     SocialSharingRequestDoneView,
+    SocialSharingRequestDetailView,
+    UserSocialProfileView,
+    SocialEventDetailView,
 )
 from api.views.user_view import UserDetailView
 
@@ -51,12 +52,12 @@ urlpatterns = [
     path("events/", SocialEventCreateView.as_view(), name="event-create"),
     path("events/<int:event_id>/join/", SocialEventJoinView.as_view(), name="event-join"),
     path("events/<int:event_id>/leave/", SocialEventLeaveView.as_view(), name="event-leave"),
-    path("events/<int:event_id>/", SocialEventDeleteView.as_view(), name="event-delete"),
+    path("events/<int:event_id>/", SocialEventDetailView.as_view(), name="event-detail"),
     path("sharing-requests/", SocialSharingRequestCreateView.as_view(), name="sharing-request-create"),
     path(
         "sharing-requests/<int:request_id>/done/", SocialSharingRequestDoneView.as_view(), name="sharing-request-done"
     ),
-    path("sharing-requests/<int:request_id>/", SocialSharingRequestDeleteView.as_view(), name="sharing-request-delete"),
+    path("sharing-requests/<int:request_id>/", SocialSharingRequestDetailView.as_view(), name="sharing-request-detail"),
     path("announcements/active/", ActiveAnnouncementsView.as_view(), name="announcements-active"),
     path("announcements/<int:announcement_id>/read/", AnnouncementReadView.as_view(), name="announcement-read"),
     path("announcements/", AnnouncementCreateView.as_view(), name="announcement-create"),
@@ -68,6 +69,7 @@ urlpatterns = [
     path("bookings/me/", MyBookingsView.as_view(), name="bookings-me"),
     path("bookings/<int:booking_id>/cancel/", BookingCancelView.as_view(), name="booking-cancel"),
     path("users/<uuid:user_id>/", UserDetailView.as_view(), name="user-info"),
+    path("users/<uuid:user_id>/social-activity/", UserSocialProfileView.as_view(), name="user-social-activity"),
     path("bookings/<int:booking_id>/", BookingDetailView.as_view(), name="booking-detail"),
     path("faculties/", FacultyListView.as_view(), name="faculty-list"),
     path("majors/", MajorListView.as_view(), name="major-list"),

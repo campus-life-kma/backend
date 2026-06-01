@@ -54,6 +54,8 @@ class SocialEvent(models.Model):
         default=False, help_text="Якщо True, івент доступний лише для студентів спеціальності організатора"
     )
 
+    created_at = models.DateTimeField(auto_now_add=True, help_text="Точний час створення запиту")
+
     participants = models.ManyToManyField(
         settings.AUTH_USER_MODEL,
         related_name="participating_events",
