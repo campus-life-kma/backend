@@ -103,6 +103,7 @@ class SocialEventDetailSerializer(serializers.ModelSerializer):
             "description",
             "start_time",
             "end_time",
+            "created_at",
             "max_person",
             "is_faculty_only",
             "is_major_only",

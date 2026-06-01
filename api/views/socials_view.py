@@ -45,7 +45,11 @@ class FeedView(APIView):
 
     @extend_schema(
         tags=["Соціальна стрічка"],
-        summary="Отримання соціальної стрічки",
+        summary="Отримання соціальної стрічки з фільтрацією та сортуванням",
+        description=(
+            "Повертає об'єднану стрічку подій та запитів на шеринг. "
+            "Підтримує фільтрацію за типами сутностей, датами, поверхами та станом активності."
+        ),
         parameters=[
             OpenApiParameter(
                 name="page",
@@ -53,7 +57,55 @@ class FeedView(APIView):
                 location="path",
                 required=True,
                 description="Номер сторінки стрічки",
-            )
+            ),
+            OpenApiParameter(
+                name="item_type",
+                type=OpenApiTypes.STR,
+                location="query",
+                required=False,
+                enum=["all", "event", "sharing_request"],
+                default="all",
+                description="Фільтр типу карток: тільки події, тільки шеринг або все разом.",
+            ),
+            OpenApiParameter(
+                name="start_date",
+                type=OpenApiTypes.DATE,
+                location="query",
+                required=False,
+                description="Початкова дата діапазону (YYYY-MM-DD). Працює тільки якщо item_type = 'event' або 'all'.",
+            ),
+            OpenApiParameter(
+                name="end_date",
+                type=OpenApiTypes.DATE,
+                location="query",
+                required=False,
+                description="Кінцева дата діапазону (YYYY-MM-DD). Працює тільки якщо item_type = 'event' або 'all'.",
+            ),
+            OpenApiParameter(
+                name="is_active",
+                type=OpenApiTypes.BOOL,
+                location="query",
+                required=False,
+                description="Якщо true — повертає тільки ті івенти,"
+                "які проходять прямо зараз (start_time <= NOW <= end_time).",
+            ),
+            OpenApiParameter(
+                name="floor_id",
+                type=OpenApiTypes.STR,
+                location="query",
+                required=False,
+                description="Фільтр по поверху."
+                "Передайте ID конкретного поверху або рядок 'my' для динамічного фільтру по поверху поточного юзера.",
+            ),
+            OpenApiParameter(
+                name="ordering",
+                type=OpenApiTypes.STR,
+                location="query",
+                required=False,
+                enum=["created_at", "start_time"],
+                default="created_at",
+                description="Сортування: 'created_at' (нові згори) або 'start_time' (найближчі івенти згори).",
+            ),
         ],
         responses={
             200: OpenApiResponse(
@@ -74,6 +126,7 @@ class FeedView(APIView):
                                     "description": "Збираємось у спільній кімнаті.",
                                     "start_time": "2026-05-23T20:00:00Z",
                                     "end_time": "2026-05-23T22:00:00Z",
+                                    "created_at": "2026-05-21T15:30:00Z",
                                     "max_person": 8,
                                     "is_faculty_only": False,
                                     "is_major_only": False,
@@ -101,8 +154,17 @@ class FeedView(APIView):
         },
     )
     def get(self, request, page):
+        filters = {
+            "item_type": request.query_params.get("item_type", "all"),
+            "start_date": request.query_params.get("start_date"),
+            "end_date": request.query_params.get("end_date"),
+            "is_active": request.query_params.get("is_active") == "true",
+            "floor_id": request.query_params.get("floor_id"),
+            "ordering": request.query_params.get("ordering", "created_at"),
+        }
+
         service = SocialsService()
-        feed = service.get_feed(request.user, page)
+        feed = service.get_feed(request.user, page, filters)
 
         results = []
         for _, item_type, item in feed["items"]:
@@ -137,6 +199,7 @@ class SocialEventCreateView(APIView):
                     "description": "Збираємось у спільній кімнаті, новачкам усе пояснимо.",
                     "start_time": "2026-05-23T20:00:00Z",
                     "end_time": "2026-05-23T22:00:00Z",
+                    "created_at": "2026-05-21T15:30:00Z",
                     "max_person": 8,
                     "is_faculty_only": False,
                     "is_major_only": False,
@@ -234,6 +297,7 @@ class SocialEventJoinView(APIView):
                             "description": "Збираємось у спільній кімнаті.",
                             "start_time": "2026-05-23T20:00:00Z",
                             "end_time": "2026-05-23T22:00:00Z",
+                            "created_at": "2026-05-21T15:30:00Z",
                             "max_person": 8,
                             "is_faculty_only": False,
                             "is_major_only": False,
@@ -335,6 +399,7 @@ class SocialEventLeaveView(APIView):
                             "description": "Збираємось у спільній кімнаті.",
                             "start_time": "2026-05-23T20:00:00Z",
                             "end_time": "2026-05-23T22:00:00Z",
+                            "created_at": "2026-05-21T15:30:00Z",
                             "max_person": 8,
                             "is_faculty_only": False,
                             "is_major_only": False,
@@ -408,6 +473,7 @@ class SocialEventDeleteView(APIView):
                             "description": "Збираємось у спільній кімнаті, новачкам усе пояснимо на місці.",
                             "start_time": "2026-05-23T20:00:00Z",
                             "end_time": "2026-05-23T22:00:00Z",
+                            "created_at": "2026-05-21T15:30:00Z",
                             "max_person": 8,
                             "is_faculty_only": False,
                             "is_major_only": False,
