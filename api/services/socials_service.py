@@ -357,6 +357,7 @@ class SocialsService:
 
     def get_user_social_profile(self, request_user, target_user_id):
         from django.contrib.auth import get_user_model
+
         User = get_user_model()
 
         try:
@@ -366,29 +367,62 @@ class SocialsService:
 
         now = timezone.now()
 
-        sharing_requests = SocialSharingRequest.objects.filter(
-            creator=target_user
-        ).select_related("creator", "creator__room", "creator__room__floor", "status").order_by("-created_at")
+        sharing_requests = (
+            SocialSharingRequest.objects.filter(creator=target_user)
+            .select_related("creator", "creator__room", "creator__room__floor", "status")
+            .order_by("-created_at")
+        )
 
         user_faculty_id = self.get_faculty_id(request_user)
 
-        visible_events = SocialEvent.objects.select_related(
-            "creator", "creator__major", "creator__major__faculty", "room", "room__floor", "floor"
-        ).filter(
-            Q(is_faculty_only=False) | Q(creator__major__faculty_id=user_faculty_id)
-        ).filter(
-            Q(is_major_only=False) | Q(creator__major_id=request_user.major_id)
+        visible_events = (
+            SocialEvent.objects.select_related(
+                "creator", "creator__major", "creator__major__faculty", "room", "room__floor", "floor"
+            )
+            .filter(Q(is_faculty_only=False) | Q(creator__major__faculty_id=user_faculty_id))
+            .filter(Q(is_major_only=False) | Q(creator__major_id=request_user.major_id))
         )
 
         created_events = visible_events.filter(creator=target_user).order_by("-start_time")
 
-        participating_events = visible_events.filter(
-            participants=target_user,
-            end_time__gt=now
-        ).exclude(creator=target_user).order_by("start_time")
+        participating_events = (
+            visible_events.filter(participants=target_user, end_time__gt=now)
+            .exclude(creator=target_user)
+            .order_by("start_time")
+        )
 
         return {
             "sharing_requests": sharing_requests,
             "created_events": created_events,
             "participating_events": participating_events,
         }
+
+    def update_event(self, user, event_id, validated_data):
+        try:
+            event = SocialEvent.objects.get(id=event_id)
+        except SocialEvent.DoesNotExist as exc:
+            raise SocialNotFoundError("Подію з таким id не знайдено.") from exc
+
+        if event.creator.id != user.id:
+            raise SocialPermissionDeniedError("Тільки автор може редагувати цю подію.")
+
+        for attr, value in validated_data.items():
+            setattr(event, attr, value)
+
+        event.save()
+        return event
+
+    def update_sharing_request(self, user, request_id, validated_data):
+        try:
+            sharing_request = SocialSharingRequest.objects.get(id=request_id)
+        except SocialSharingRequest.DoesNotExist as exc:
+            raise SocialNotFoundError("Запит на шеринг з таким id не знайдено.") from exc
+
+        if sharing_request.creator.id != user.id:
+            raise SocialPermissionDeniedError("Тільки автор може редагувати цей запит.")
+
+        for attr, value in validated_data.items():
+            setattr(sharing_request, attr, value)
+
+        sharing_request.save()
+        return sharing_request

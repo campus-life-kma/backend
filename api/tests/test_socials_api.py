@@ -164,7 +164,7 @@ class SocialsApiTests(APITestCase):
         event = self.create_event()
         event.participants.add(self.user, self.other_user)
 
-        response = self.client.get(reverse("event-delete", kwargs={"event_id": event.id}))
+        response = self.client.get(reverse("event-detail", kwargs={"event_id": event.id}))
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         participant_ids = {participant["id"] for participant in response.data["participants"]}
@@ -231,7 +231,7 @@ class SocialsApiTests(APITestCase):
         )
         self.client.force_authenticate(user=self.moderator)
 
-        response = self.client.delete(reverse("sharing-request-delete", kwargs={"request_id": sharing_request.id}))
+        response = self.client.delete(reverse("sharing-request-detail", kwargs={"request_id": sharing_request.id}))
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         sharing_request.refresh_from_db()
@@ -240,7 +240,54 @@ class SocialsApiTests(APITestCase):
     def test_user_cannot_delete_other_users_event(self):
         event = self.create_event(creator=self.other_user)
 
-        response = self.client.delete(reverse("event-delete", kwargs={"event_id": event.id}))
+        response = self.client.delete(reverse("event-detail", kwargs={"event_id": event.id}))
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertTrue(SocialEvent.objects.filter(id=event.id).exists())
+
+    def test_owner_can_update_event(self):
+        event = self.create_event(creator=self.user)
+        new_title = "Оновлена назва події"
+
+        response = self.client.patch(
+            reverse("event-detail", kwargs={"event_id": event.id}), {"title": new_title}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        event.refresh_from_db()
+        self.assertEqual(event.title, new_title)
+
+    def test_other_user_cannot_update_event(self):
+        event = self.create_event(creator=self.other_user)
+
+        response = self.client.patch(
+            reverse("event-detail", kwargs={"event_id": event.id}), {"title": "Хакерська зміна"}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        event.refresh_from_db()
+        self.assertNotEqual(event.title, "Хакерська зміна")
+
+    def test_owner_can_update_sharing_request(self):
+        request = SocialSharingRequest.objects.create(creator=self.user, title="Стара назва", status=self.active_status)
+
+        response = self.client.patch(
+            reverse("sharing-request-detail", kwargs={"request_id": request.id}), {"title": "Нова назва"}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        request.refresh_from_db()
+        self.assertEqual(request.title, "Нова назва")
+
+    def test_other_user_cannot_update_sharing_request(self):
+        request = SocialSharingRequest.objects.create(
+            creator=self.other_user, title="Стара назва", status=self.active_status
+        )
+
+        response = self.client.patch(
+            reverse("sharing-request-detail", kwargs={"request_id": request.id}),
+            {"title": "Зламана назва"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
