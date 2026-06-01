@@ -11,6 +11,8 @@ from api.serializers.socials_serializer import (
     SocialEventFullDetailSerializer,
     SocialSharingRequestCreateSerializer,
     SocialSharingRequestDetailSerializer,
+    SocialEventFeedSerializer,
+    SocialSharingRequestFeedSerializer,
 )
 from api.services.socials_service import (
     SocialAccessDeniedError,
@@ -123,26 +125,26 @@ class FeedView(APIView):
                                     "type": "event",
                                     "id": 12,
                                     "title": "Граємо в Мафію",
-                                    "description": "Збираємось у спільній кімнаті.",
                                     "start_time": "2026-05-23T20:00:00Z",
-                                    "end_time": "2026-05-23T22:00:00Z",
-                                    "created_at": "2026-05-21T15:30:00Z",
-                                    "max_person": 8,
+                                    "creator": {
+                                        "id": "0c3a2cb7-7ef5-4c0f-9d36-1b7f0eb05c74",
+                                        "display_name": "Богдан Змеул",
+                                        "photo": "/media/avatars/bogdan.jpg",
+                                    },
                                     "is_faculty_only": False,
                                     "is_major_only": False,
-                                    "participants_count": 3,
-                                    "room_id": 5,
-                                    "room_name": "Спільна кімната",
-                                    "floor_id": 3,
-                                    "custom_location": None,
                                 },
                                 {
                                     "type": "sharing_request",
                                     "id": 7,
-                                    "title": "Позичте зарядку для ноутбука на дві години",
+                                    "title": "Позичте зарядку для ноутбука",
                                     "status": "ACTIVE",
                                     "created_at": "2026-05-23T18:10:00Z",
-                                    "floor_id": 3,
+                                    "creator": {
+                                        "id": "6a6d7bb9-9210-4f62-a5df-c7c9d2c6f9a1",
+                                        "display_name": "Олена Петренко",
+                                        "photo": None,
+                                    },
                                 },
                             ],
                         },
@@ -169,9 +171,9 @@ class FeedView(APIView):
         results = []
         for _, item_type, item in feed["items"]:
             if item_type == "event":
-                results.append(SocialEventDetailSerializer(item, context={"request": request}).data)
+                results.append(SocialEventFeedSerializer(item, context={"request": request}).data)
             else:
-                results.append(SocialSharingRequestDetailSerializer(item, context={"request": request}).data)
+                results.append(SocialSharingRequestFeedSerializer(item, context={"request": request}).data)
 
         return Response(
             {
@@ -199,7 +201,6 @@ class SocialEventCreateView(APIView):
                     "description": "Збираємось у спільній кімнаті, новачкам усе пояснимо.",
                     "start_time": "2026-05-23T20:00:00Z",
                     "end_time": "2026-05-23T22:00:00Z",
-                    "created_at": "2026-05-21T15:30:00Z",
                     "max_person": 8,
                     "is_faculty_only": False,
                     "is_major_only": False,
@@ -755,7 +756,7 @@ class SocialSharingRequestDoneView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
-class SocialSharingRequestDeleteView(APIView):
+class SocialSharingRequestDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
@@ -835,6 +836,68 @@ class SocialSharingRequestDeleteView(APIView):
 
         try:
             sharing_request = service.delete_sharing_request(request.user, request_id)
+        except SocialError as exc:
+            return Response({"detail": str(exc)}, status=get_social_error_status(exc))
+
+        serializer = SocialSharingRequestDetailSerializer(sharing_request, context={"request": request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        tags=["Соціальна стрічка"],
+        summary="Отримання детальної інформації про запит на шеринг",
+        description="Повертає повну інформацію про конкретний запит на шеринг за його ID.",
+        parameters=[
+            OpenApiParameter(
+                name="request_id",
+                type=OpenApiTypes.INT,
+                location="path",
+                required=True,
+                description="ID запиту на шеринг, який потрібно отримати.",
+            )
+        ],
+        responses={
+            200: OpenApiResponse(
+                response=SocialSharingRequestDetailSerializer,
+                description="Детальну інформацію про запит успішно отримано.",
+                examples=[
+                    OpenApiExample(
+                        "Деталі запиту на шеринг",
+                        value={
+                            "type": "sharing_request",
+                            "id": 7,
+                            "title": "Позичте зарядку для ноутбука на дві години",
+                            "creator": {
+                                "id": "0c3a2cb7-7ef5-4c0f-9d36-1b7f0eb05c74",
+                                "display_name": "Богдан Змеул",
+                                "photo": "/media/avatars/bogdan.jpg",
+                            },
+                            "status": "ACTIVE",
+                            "created_at": "2026-05-23T18:10:00Z",
+                            "floor_id": 3,
+                        },
+                        response_only=True,
+                    )
+                ],
+            ),
+            401: OpenApiResponse(description="Користувач не авторизований."),
+            404: OpenApiResponse(
+                response=dict,
+                description="Запит на шеринг не знайдено.",
+                examples=[
+                    OpenApiExample(
+                        "Запит не знайдено",
+                        value={"detail": "Запит на шеринг з таким id не знайдено."},
+                        response_only=True,
+                    )
+                ],
+            ),
+        },
+    )
+    def get(self, request, request_id):
+        service = SocialsService()
+
+        try:
+            sharing_request = service.get_sharing_request_detail(request.user, request_id)
         except SocialError as exc:
             return Response({"detail": str(exc)}, status=get_social_error_status(exc))
 

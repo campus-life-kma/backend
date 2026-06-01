@@ -35,8 +35,8 @@ from api.views.socials_view import (
     SocialEventJoinView,
     SocialEventLeaveView,
     SocialSharingRequestCreateView,
-    SocialSharingRequestDeleteView,
     SocialSharingRequestDoneView,
+    SocialSharingRequestDetailView,
 )
 from api.views.user_view import UserDetailView
 
@@ -56,7 +56,7 @@ urlpatterns = [
     path(
         "sharing-requests/<int:request_id>/done/", SocialSharingRequestDoneView.as_view(), name="sharing-request-done"
     ),
-    path("sharing-requests/<int:request_id>/", SocialSharingRequestDeleteView.as_view(), name="sharing-request-delete"),
+    path("sharing-requests/<int:request_id>/", SocialSharingRequestDetailView.as_view(), name="sharing-request-delete"),
     path("announcements/active/", ActiveAnnouncementsView.as_view(), name="announcements-active"),
     path("announcements/<int:announcement_id>/read/", AnnouncementReadView.as_view(), name="announcement-read"),
     path("announcements/", AnnouncementCreateView.as_view(), name="announcement-create"),

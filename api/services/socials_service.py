@@ -67,8 +67,8 @@ class SocialsService:
         event_sort_field = "start_time" if ordering == "start_time" else "created_at"
         sharing_sort_field = "created_at"
 
-        event_rows = SocialEvent.objects.none()
-        sharing_rows = SocialSharingRequest.objects.none()
+        event_rows = None
+        sharing_rows = None
 
         if item_type in ["all", "event"]:
             event_rows = self._get_event_rows(user, now, filters, event_sort_field)
@@ -76,11 +76,18 @@ class SocialsService:
         if item_type in ["all", "sharing_request"]:
             sharing_rows = self._get_sharing_rows(user, filters, sharing_sort_field)
 
-        combined_union = event_rows.union(sharing_rows, all=True)
+        if event_rows is not None and sharing_rows is not None:
+            combined = event_rows.union(sharing_rows, all=True)
+        elif event_rows is not None:
+            combined = event_rows
+        elif sharing_rows is not None:
+            combined = sharing_rows
+        else:
+            return SocialEvent.objects.none()
 
         if ordering == "start_time":
-            return combined_union.order_by("sort_time")
-        return combined_union.order_by("-sort_time")
+            return combined.order_by("sort_time")
+        return combined.order_by("-sort_time")
 
     def _get_event_rows(self, user, now, filters: dict, sort_field: str):
         events_qs = self.get_visible_events_queryset(user, now)
@@ -207,6 +214,14 @@ class SocialsService:
             raise SocialAccessDeniedError()
 
         return event
+
+    def get_sharing_request_detail(self, user, request_id):
+        try:
+            return SocialSharingRequest.objects.select_related(
+                "creator", "creator__room", "creator__room__floor", "status"
+            ).get(id=request_id)
+        except SocialSharingRequest.DoesNotExist as exc:
+            raise SocialNotFoundError("Запит на шеринг з таким id не знайдено.") from exc
 
     def join_event(self, user, event_id):
         now = timezone.now()

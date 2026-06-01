@@ -1,3 +1,4 @@
+from django.utils import timezone
 from rest_framework import serializers
 from drf_spectacular.utils import extend_schema_field
 
@@ -75,6 +76,11 @@ class SocialEventCreateSerializer(serializers.ModelSerializer):
         return value or None
 
     def validate(self, attrs):
+        now = timezone.now()
+
+        if attrs["start_time"] < now:
+            raise serializers.ValidationError({"start_time": "Час початку події не може бути в минулому."})
+
         if attrs["end_time"] <= attrs["start_time"]:
             raise serializers.ValidationError({"end_time": "Час завершення має бути пізніше часу початку."})
 
@@ -176,3 +182,33 @@ class SocialSharingRequestDetailSerializer(serializers.ModelSerializer):
             return obj.creator.room.floor_id
 
         return None
+
+
+class SocialEventFeedSerializer(serializers.ModelSerializer):
+    creator = UserMapSerializer(read_only=True, help_text="Автор події")
+    type = serializers.SerializerMethodField(help_text="Тип елемента стрічки")
+
+    is_faculty_only = serializers.BooleanField(read_only=True)
+    is_major_only = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        model = SocialEvent
+        fields = ["type", "id", "title", "start_time", "creator", "is_faculty_only", "is_major_only"]
+
+    @extend_schema_field(serializers.CharField)
+    def get_type(self, obj):
+        return "event"
+
+
+class SocialSharingRequestFeedSerializer(serializers.ModelSerializer):
+    creator = UserMapSerializer(read_only=True, help_text="Автор запиту")
+    status = serializers.CharField(source="status.status", read_only=True, help_text="Поточний статус запиту")
+    type = serializers.SerializerMethodField(help_text="Тип елемента стрічки")
+
+    class Meta:
+        model = SocialSharingRequest
+        fields = ["type", "id", "title", "creator", "status", "created_at"]
+
+    @extend_schema_field(serializers.CharField)
+    def get_type(self, obj):
+        return "sharing_request"
