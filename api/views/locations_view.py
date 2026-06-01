@@ -6,7 +6,12 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from api.models import Floor
-from api.serializers.locations_serializer import FloorListSerializer, FloorMapDataSerializer
+from api.permissions import AdminPermission
+from api.serializers.locations_serializer import (
+    FloorListSerializer,
+    FloorMapDataSerializer,
+    RoomBlockSerializer,
+)
 from api.services.locations_service import LocationsService
 
 
@@ -180,3 +185,79 @@ class FloorMapDataView(APIView):
             return Response(serializer.data, status=status.HTTP_200_OK)
         except Floor.DoesNotExist:
             return Response({"detail": "Поверху з таким id не знайдено!"}, status=status.HTTP_404_NOT_FOUND)
+
+
+class RoomBlockView(APIView):
+    permission_classes = [AdminPermission]
+
+    @extend_schema(
+        tags=["Локації"],
+        summary="Блокування кімнати (лише адміністратор)",
+        request=None,
+        parameters=[
+            OpenApiParameter(
+                name="room_id",
+                type=OpenApiTypes.INT,
+                location="path",
+                required=True,
+                description="ID кімнати, яку адміністратор блокує.",
+            )
+        ],
+        responses={
+            200: OpenApiResponse(response=RoomBlockSerializer, description="Кімнату заблоковано."),
+            401: OpenApiResponse(description="Користувач не авторизований."),
+            403: OpenApiResponse(description="Тільки адміністратор може блокувати кімнати."),
+            404: OpenApiResponse(
+                description="Кімнату не знайдено.",
+                response=dict,
+                examples=[OpenApiExample("Кімната відсутня", value={"detail": "Кімнату з таким id не знайдено!"})],
+            ),
+        },
+    )
+    def patch(self, request, room_id):
+        service = LocationsService()
+        try:
+            room = service.set_room_blocked(room_id, True)
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = RoomBlockSerializer(room, context={"request": request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class RoomUnblockView(APIView):
+    permission_classes = [AdminPermission]
+
+    @extend_schema(
+        tags=["Локації"],
+        summary="Розблокування кімнати (лише адміністратор)",
+        request=None,
+        parameters=[
+            OpenApiParameter(
+                name="room_id",
+                type=OpenApiTypes.INT,
+                location="path",
+                required=True,
+                description="ID кімнати, яку адміністратор розблоковує.",
+            )
+        ],
+        responses={
+            200: OpenApiResponse(response=RoomBlockSerializer, description="Кімнату розблоковано."),
+            401: OpenApiResponse(description="Користувач не авторизований."),
+            403: OpenApiResponse(description="Тільки адміністратор може розблоковувати кімнати."),
+            404: OpenApiResponse(
+                description="Кімнату не знайдено.",
+                response=dict,
+                examples=[OpenApiExample("Кімната відсутня", value={"detail": "Кімнату з таким id не знайдено!"})],
+            ),
+        },
+    )
+    def patch(self, request, room_id):
+        service = LocationsService()
+        try:
+            room = service.set_room_blocked(room_id, False)
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = RoomBlockSerializer(room, context={"request": request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
