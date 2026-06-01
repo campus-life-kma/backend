@@ -903,3 +903,94 @@ class SocialSharingRequestDetailView(APIView):
 
         serializer = SocialSharingRequestDetailSerializer(sharing_request, context={"request": request})
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class UserSocialProfileView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=["Соціальна стрічка"],
+        summary="Отримання соціальної активності користувача",
+        description=(
+            "Повертає три списки для сторінки профілю користувача: його запити на шеринг, "
+            "створені ним події та актуальні події, в яких він планує взяти участь (end_time > now). "
+            "Усі події фільтруються з урахуванням прав доступу користувача, який робить запит."
+        ),
+        parameters=[
+            OpenApiParameter(
+                name="user_id",
+                type=OpenApiTypes.UUID,
+                location="path",
+                required=True,
+                description="ID користувача, активність якого потрібно отримати.",
+            )
+        ],
+        responses={
+            200: OpenApiResponse(
+                response=dict,
+                description="Профіль успішно отримано.",
+                examples=[
+                    OpenApiExample(
+                        "Активність користувача",
+                        value={
+                            "sharing_requests": [
+                                {
+                                    "type": "sharing_request",
+                                    "id": 7,
+                                    "title": "Позичте зарядку для ноутбука",
+                                    "status": "ACTIVE",
+                                    "created_at": "2026-05-23T18:10:00Z",
+                                    "creator": {
+                                        "id": "0c3a2cb7-7ef5-4c0f-9d36-1b7f0eb05c74",
+                                        "display_name": "Богдан Змеул",
+                                        "photo": None
+                                    }
+                                }
+                            ],
+                            "created_events": [
+                                {
+                                    "type": "event",
+                                    "id": 12,
+                                    "title": "Граємо в Мафію",
+                                    "start_time": "2026-05-23T20:00:00Z",
+                                    "creator": {
+                                        "id": "0c3a2cb7-7ef5-4c0f-9d36-1b7f0eb05c74",
+                                        "display_name": "Богдан Змеул",
+                                        "photo": None
+                                    },
+                                    "is_faculty_only": False,
+                                    "is_major_only": False
+                                }
+                            ],
+                            "participating_events": []
+                        },
+                        response_only=True,
+                    )
+                ],
+            ),
+            401: OpenApiResponse(description="Користувач не авторизований."),
+            404: OpenApiResponse(description="Користувача не знайдено.")
+        }
+    )
+    def get(self, request, user_id):
+        service = SocialsService()
+
+        try:
+            activity = service.get_user_social_profile(request.user, user_id)
+        except SocialError as exc:
+            return Response({"detail": str(exc)}, status=get_social_error_status(exc))
+
+        return Response(
+            {
+                "sharing_requests": SocialSharingRequestFeedSerializer(
+                    activity["sharing_requests"], many=True, context={"request": request}
+                ).data,
+                "created_events": SocialEventFeedSerializer(
+                    activity["created_events"], many=True, context={"request": request}
+                ).data,
+                "participating_events": SocialEventFeedSerializer(
+                    activity["participating_events"], many=True, context={"request": request}
+                ).data,
+            },
+            status=status.HTTP_200_OK,
+        )

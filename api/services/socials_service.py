@@ -354,3 +354,41 @@ class SocialsService:
             return user.major.faculty_id
 
         return None
+
+    def get_user_social_profile(self, request_user, target_user_id):
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+
+        try:
+            target_user = User.objects.get(id=target_user_id)
+        except User.DoesNotExist as exc:
+            raise SocialNotFoundError("Користувача з таким id не знайдено.") from exc
+
+        now = timezone.now()
+
+        sharing_requests = SocialSharingRequest.objects.filter(
+            creator=target_user
+        ).select_related("creator", "creator__room", "creator__room__floor", "status").order_by("-created_at")
+
+        user_faculty_id = self.get_faculty_id(request_user)
+
+        visible_events = SocialEvent.objects.select_related(
+            "creator", "creator__major", "creator__major__faculty", "room", "room__floor", "floor"
+        ).filter(
+            Q(is_faculty_only=False) | Q(creator__major__faculty_id=user_faculty_id)
+        ).filter(
+            Q(is_major_only=False) | Q(creator__major_id=request_user.major_id)
+        )
+
+        created_events = visible_events.filter(creator=target_user).order_by("-start_time")
+
+        participating_events = visible_events.filter(
+            participants=target_user,
+            end_time__gt=now
+        ).exclude(creator=target_user).order_by("start_time")
+
+        return {
+            "sharing_requests": sharing_requests,
+            "created_events": created_events,
+            "participating_events": participating_events,
+        }

@@ -36,7 +36,7 @@ from api.views.socials_view import (
     SocialEventLeaveView,
     SocialSharingRequestCreateView,
     SocialSharingRequestDoneView,
-    SocialSharingRequestDetailView,
+    SocialSharingRequestDetailView, UserSocialProfileView,
 )
 from api.views.user_view import UserDetailView
 
@@ -68,6 +68,7 @@ urlpatterns = [
     path("bookings/me/", MyBookingsView.as_view(), name="bookings-me"),
     path("bookings/<int:booking_id>/cancel/", BookingCancelView.as_view(), name="booking-cancel"),
     path("users/<uuid:user_id>/", UserDetailView.as_view(), name="user-info"),
+    path("users/<uuid:user_id>/social-activity/", UserSocialProfileView.as_view(), name="user-social-activity"),
     path("bookings/<int:booking_id>/", BookingDetailView.as_view(), name="booking-detail"),
     path("faculties/", FacultyListView.as_view(), name="faculty-list"),
     path("majors/", MajorListView.as_view(), name="major-list"),
