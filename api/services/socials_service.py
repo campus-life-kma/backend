@@ -153,9 +153,7 @@ class SocialsService:
 
         user_faculty_id = self.get_faculty_id(user)
 
-        return base_qs.filter(
-            Q(is_faculty_only=False) | Q(creator__major__faculty_id=user_faculty_id)
-        ).filter(
+        return base_qs.filter(Q(is_faculty_only=False) | Q(creator__major__faculty_id=user_faculty_id)).filter(
             Q(is_major_only=False) | Q(creator__major_id=user.major_id)
         )
 
@@ -444,9 +442,7 @@ class SocialsService:
             user_faculty_id = self.get_faculty_id(request_user)
             visible_events = base_events_qs.filter(
                 Q(is_faculty_only=False) | Q(creator__major__faculty_id=user_faculty_id)
-            ).filter(
-                Q(is_major_only=False) | Q(creator__major_id=request_user.major_id)
-            )
+            ).filter(Q(is_major_only=False) | Q(creator__major_id=request_user.major_id))
 
         created_events = visible_events.filter(creator=target_user).order_by("-start_time")
 

@@ -202,7 +202,7 @@ class SocialEventFeedSerializer(serializers.ModelSerializer):
             "created_at",
             "creator",
             "is_faculty_only",
-            "is_major_only"
+            "is_major_only",
         ]
 
     @extend_schema_field(serializers.CharField)
