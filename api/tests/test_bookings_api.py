@@ -1,4 +1,5 @@
 from datetime import timedelta
+from unittest.mock import patch
 
 from django.urls import reverse
 from django.utils import timezone
@@ -288,7 +289,8 @@ class BookingsApiTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_moderator_can_cancel_booking_on_own_floor(self):
+    @patch("api.services.announcements_service.AnnouncementsService.create_announcement")
+    def test_moderator_can_cancel_booking_on_own_floor(self, mock_create_announcement):
         booking = self.create_booking(user=self.other_user, resource=self.resource)
         self.client.force_authenticate(user=self.moderator)
 
@@ -297,6 +299,7 @@ class BookingsApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         booking.refresh_from_db()
         self.assertEqual(booking.status.status, "CANCELLED")
+        mock_create_announcement.assert_called_once()
 
     def test_moderator_cannot_cancel_booking_on_other_floor(self):
         booking = self.create_booking(user=self.other_user, resource=self.other_resource)
