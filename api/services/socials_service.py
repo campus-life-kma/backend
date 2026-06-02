@@ -146,12 +146,17 @@ class SocialsService:
         return start_dt, end_dt
 
     def get_visible_events_queryset(self, user, now):
+        base_qs = SocialEvent.objects.filter(end_time__gte=now)
+
+        if user.is_admin:
+            return base_qs
+
         user_faculty_id = self.get_faculty_id(user)
 
-        return (
-            SocialEvent.objects.filter(end_time__gte=now)
-            .filter(Q(is_faculty_only=False) | Q(creator__major__faculty_id=user_faculty_id))
-            .filter(Q(is_major_only=False) | Q(creator__major_id=user.major_id))
+        return base_qs.filter(
+            Q(is_faculty_only=False) | Q(creator__major__faculty_id=user_faculty_id)
+        ).filter(
+            Q(is_major_only=False) | Q(creator__major_id=user.major_id)
         )
 
     def resolve_feed_items(self, rows):
@@ -340,7 +345,7 @@ class SocialsService:
 
         return sharing_request
 
-    def _send_system_announcement(self, actor, target_users, title, content):
+    def _send_system_announcement(self, actor, target_users, title, message):
         try:
             target_type = TargetType.objects.get(type="SPECIFIC_USERS")
         except TargetType.DoesNotExist:
@@ -349,7 +354,7 @@ class SocialsService:
         announcement_data = {
             "target_type": target_type,
             "title": title,
-            "content": content,
+            "message": message,
             "target_users": target_users,
         }
 
@@ -429,15 +434,19 @@ class SocialsService:
             .order_by("-created_at")
         )
 
-        user_faculty_id = self.get_faculty_id(request_user)
-
-        visible_events = (
-            SocialEvent.objects.select_related(
-                "creator", "creator__major", "creator__major__faculty", "room", "room__floor", "floor"
-            )
-            .filter(Q(is_faculty_only=False) | Q(creator__major__faculty_id=user_faculty_id))
-            .filter(Q(is_major_only=False) | Q(creator__major_id=request_user.major_id))
+        base_events_qs = SocialEvent.objects.select_related(
+            "creator", "creator__major", "creator__major__faculty", "room", "room__floor", "floor"
         )
+
+        if request_user.is_admin:
+            visible_events = base_events_qs
+        else:
+            user_faculty_id = self.get_faculty_id(request_user)
+            visible_events = base_events_qs.filter(
+                Q(is_faculty_only=False) | Q(creator__major__faculty_id=user_faculty_id)
+            ).filter(
+                Q(is_major_only=False) | Q(creator__major_id=request_user.major_id)
+            )
 
         created_events = visible_events.filter(creator=target_user).order_by("-start_time")
 

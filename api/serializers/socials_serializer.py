@@ -193,7 +193,17 @@ class SocialEventFeedSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = SocialEvent
-        fields = ["type", "id", "title", "start_time", "creator", "is_faculty_only", "is_major_only"]
+        fields = [
+            "type",
+            "id",
+            "title",
+            "start_time",
+            "end_time",
+            "created_at",
+            "creator",
+            "is_faculty_only",
+            "is_major_only"
+        ]
 
     @extend_schema_field(serializers.CharField)
     def get_type(self, obj):
