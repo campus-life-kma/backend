@@ -6,7 +6,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_date
 
 from api.models import Booking, BookingStatus, Resource, TargetType
-from api.services.announcements_service import AnnouncementsService
+from api.services.announcements_service import AnnouncementsService, AnnouncementError
 
 
 class BookingError(Exception):
@@ -145,18 +145,20 @@ class BookingsService:
 
         cancelled_status = self.get_status("CANCELLED")
         if booking.status_id != cancelled_status.id:
-            booking.status = cancelled_status
-            booking.save(update_fields=["status"])
 
-            if user.id != booking.user.id:
-                start_str = timezone.localtime(booking.start_time).strftime("%d.%m.%Y %H:%M")
-                subject = f"Скасування бронювання: {booking.resource.name}"
-                message = (
-                    f"Користувач {user.full_name} скасував ваше бронювання ресурсу '{booking.resource.name}', "
-                    f"яке було заплановано на {start_str}.\n\n"
-                    f"За питаннями звертайтеся за адресою: {user.email}"
-                )
-                self._send_system_announcement(user, [booking.user], subject, message)
+            with transaction.atomic():
+                booking.status = cancelled_status
+                booking.save(update_fields=["status"])
+
+                if user.id != booking.user.id:
+                    start_str = timezone.localtime(booking.start_time).strftime("%d.%m.%Y %H:%M")
+                    subject = f"Скасування бронювання: {booking.resource.name}"
+                    message = (
+                        f"Користувач {user.full_name} скасував ваше бронювання ресурсу '{booking.resource.name}', "
+                        f"яке було заплановано на {start_str}.\n\n"
+                        f"За питаннями звертайтеся за адресою: {user.email}"
+                    )
+                    self._send_system_announcement(user, [booking.user], subject, message)
 
         return booking
 
@@ -288,7 +290,7 @@ class BookingsService:
 
         return None
 
-    def _send_system_announcement(self, actor, target_users, title, content):
+    def _send_system_announcement(self, actor, target_users, title, message):
         try:
             target_type = TargetType.objects.get(type="SPECIFIC_USERS")
         except TargetType.DoesNotExist:
@@ -297,11 +299,11 @@ class BookingsService:
         announcement_data = {
             "target_type": target_type,
             "title": title,
-            "content": content,
+            "message": message,
             "target_users": target_users,
         }
 
         try:
             AnnouncementsService().create_announcement(actor, announcement_data)
-        except Exception:
-            pass
+        except AnnouncementError as exc:
+            raise BookingError("Не вдалося надіслати сповіщення користувачам. Дію скасовано.") from exc
