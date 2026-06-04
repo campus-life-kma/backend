@@ -217,9 +217,12 @@ class RoomBlockView(APIView):
     def patch(self, request, room_id):
         service = LocationsService()
         try:
-            room = service.set_room_blocked(room_id, True)
+            room = service.block_room(request.user, room_id)
         except ValueError as exc:
-            return Response({"detail": str(exc)}, status=status.HTTP_404_NOT_FOUND)
+            response_status = status.HTTP_404_NOT_FOUND
+            if str(exc) != "Кімнату з таким id не знайдено!":
+                response_status = status.HTTP_400_BAD_REQUEST
+            return Response({"detail": str(exc)}, status=response_status)
 
         serializer = RoomBlockSerializer(room, context={"request": request})
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -255,7 +258,7 @@ class RoomUnblockView(APIView):
     def patch(self, request, room_id):
         service = LocationsService()
         try:
-            room = service.set_room_blocked(room_id, False)
+            room = service.unblock_room(request.user, room_id)
         except ValueError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_404_NOT_FOUND)
 
