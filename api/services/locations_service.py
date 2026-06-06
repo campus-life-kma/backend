@@ -29,8 +29,6 @@ class LocationsService:
             room.is_blocked = True
             room.save(update_fields=["is_blocked"])
 
-            # Block every resource of the room and cancel its active bookings;
-            # the cancellation announces the change to the affected users.
             for resource in room.resources.filter(is_blocked=False):
                 resource.is_blocked = True
                 resource.save(update_fields=["is_blocked"])
@@ -39,7 +37,6 @@ class LocationsService:
                 except BookingError as exc:
                     raise ValueError(str(exc)) from exc
 
-            # Cancel events that have not finished yet and notify everyone involved.
             events = room.events.filter(end_time__gte=now).select_related("creator").prefetch_related("participants")
             for event in events:
                 recipients = {participant.id: participant for participant in event.participants.all()}
@@ -57,7 +54,6 @@ class LocationsService:
 
                 event.delete()
 
-            # Warn the residents of the blocked room.
             residents = list(User.objects.filter(room=room).exclude(id=user.id))
             if residents:
                 title = f"Кімнату '{room.name}' заблоковано"
