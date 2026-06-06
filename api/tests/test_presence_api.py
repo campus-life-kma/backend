@@ -104,11 +104,15 @@ class PresenceApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(Presence.objects.filter(user=self.user).exists())
 
-    def test_check_in_rejects_living_room(self):
+    def test_check_in_allows_living_room(self):
         response = self.client.post(reverse("presence-check-in"), {"room_id": self.home_room.id}, format="json")
 
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertFalse(Presence.objects.filter(user=self.user).exists())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(Presence.objects.count(), 1)
+
+        presence = Presence.objects.get(user=self.user)
+        self.assertEqual(presence.room, self.home_room)
+        self.assertEqual(response.data["room_id"], self.home_room.id)
 
     def test_check_in_returns_404_for_missing_room(self):
         response = self.client.post(reverse("presence-check-in"), {"room_id": 999999}, format="json")
