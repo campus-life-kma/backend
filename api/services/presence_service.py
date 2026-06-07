@@ -16,9 +16,6 @@ class PresenceService:
         if room.is_blocked:
             raise ValueError("Ця кімната заблокована, тому в ній не можна відмітити присутність.")
 
-        if room.room_type.type == "LIVING":
-            raise ValueError("Відмітити присутність можна лише у спільних просторах.")
-
         now = timezone.now()
 
         with transaction.atomic():

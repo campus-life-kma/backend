@@ -26,7 +26,7 @@ from api.views.dictionaries_view import (
     FloorListView,
     RoomListView,
 )
-from api.views.locations_view import FloorsView, FloorMapDataView
+from api.views.locations_view import FloorsView, FloorMapDataView, RoomBlockView, RoomUnblockView
 from api.views.presence_view import PresenceCheckInView, PresenceGoHomeView
 from api.views.socials_view import (
     FeedView,
@@ -46,6 +46,8 @@ urlpatterns = [
     path("auth/login/", LoginView.as_view(), name="login"),
     path("floors/<int:dormitory_id>/", FloorsView.as_view(), name="floors"),
     path("floors/<int:floor_id>/map-data/", FloorMapDataView.as_view(), name="floor-map-data"),
+    path("rooms/<int:room_id>/block/", RoomBlockView.as_view(), name="room-block"),
+    path("rooms/<int:room_id>/unblock/", RoomUnblockView.as_view(), name="room-unblock"),
     path("presence/check-in/", PresenceCheckInView.as_view(), name="presence-check-in"),
     path("presence/go-home/", PresenceGoHomeView.as_view(), name="presence-go-home"),
     path("feed/<int:page>/", FeedView.as_view(), name="feed"),

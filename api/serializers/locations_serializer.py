@@ -14,6 +14,15 @@ class FloorListSerializer(serializers.ModelSerializer):
         fields = ["id", "number"]
 
 
+class RoomBlockSerializer(serializers.ModelSerializer):
+    floor_id = serializers.IntegerField(source="floor.id", read_only=True, help_text="ID поверху кімнати")
+    room_type = serializers.CharField(source="room_type.type", read_only=True, help_text="Тип кімнати")
+
+    class Meta:
+        model = Room
+        fields = ["id", "name", "floor_id", "room_type", "max_person", "is_blocked"]
+
+
 class ResourceSerializer(serializers.ModelSerializer):
     resource_type = serializers.CharField(
         source="resource_type.type", help_text="Категорія ресурсу (наприклад 'Пралка', 'Духова піч')"
