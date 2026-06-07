@@ -8,11 +8,12 @@ from api.serializers.user_serializer import UserMapSerializer
 
 class SocialEventMapSerializer(serializers.ModelSerializer):
     creator = UserMapSerializer(read_only=True, help_text="Організатор івенту")
+    status = serializers.CharField(source="status.status", read_only=True, help_text="Поточний статус івенту")
     participants_count = serializers.SerializerMethodField(help_text="Кількість учасників")
 
     class Meta:
         model = SocialEvent
-        fields = ["id", "title", "creator", "participants_count"]
+        fields = ["id", "title", "creator", "status", "participants_count"]
 
     @extend_schema_field(serializers.IntegerField)
     def get_participants_count(self, obj):
@@ -94,6 +95,7 @@ class SocialEventCreateSerializer(serializers.ModelSerializer):
 
 class SocialEventDetailSerializer(serializers.ModelSerializer):
     creator = UserMapSerializer(read_only=True, help_text="Автор події")
+    status = serializers.CharField(source="status.status", read_only=True, help_text="Поточний статус івенту")
     participants_count = serializers.SerializerMethodField(help_text="Кількість учасників")
     room_id = serializers.IntegerField(source="room.id", read_only=True, allow_null=True)
     room_name = serializers.CharField(source="room.name", read_only=True, allow_null=True)
@@ -107,6 +109,7 @@ class SocialEventDetailSerializer(serializers.ModelSerializer):
             "id",
             "title",
             "description",
+            "status",
             "start_time",
             "end_time",
             "created_at",
@@ -186,6 +189,7 @@ class SocialSharingRequestDetailSerializer(serializers.ModelSerializer):
 
 class SocialEventFeedSerializer(serializers.ModelSerializer):
     creator = UserMapSerializer(read_only=True, help_text="Автор події")
+    status = serializers.CharField(source="status.status", read_only=True, help_text="Поточний статус івенту")
     type = serializers.SerializerMethodField(help_text="Тип елемента стрічки")
 
     is_faculty_only = serializers.BooleanField(read_only=True)
@@ -197,6 +201,7 @@ class SocialEventFeedSerializer(serializers.ModelSerializer):
             "type",
             "id",
             "title",
+            "status",
             "start_time",
             "end_time",
             "created_at",

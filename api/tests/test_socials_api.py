@@ -95,6 +95,7 @@ class SocialsApiTests(APITestCase):
         now = timezone.now()
         data = {
             "creator": creator or self.user,
+            "status": self.active_status,
             "title": "Настільні ігри",
             "description": "Граємо ввечері",
             "start_time": now + timedelta(hours=1),
@@ -159,6 +160,8 @@ class SocialsApiTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         event = SocialEvent.objects.get(id=response.data["id"])
+        self.assertEqual(response.data["status"], "ACTIVE")
+        self.assertEqual(event.status.status, "ACTIVE")
         self.assertTrue(event.participants.filter(id=self.user.id).exists())
 
     def test_get_event_detail_returns_participants(self):

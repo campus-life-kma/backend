@@ -12,6 +12,12 @@ class SocialEvent(models.Model):
         related_name="created_events",
         help_text="Організатор івенту",
     )
+    status = models.ForeignKey(
+        "SocialSharingStatus",
+        on_delete=models.PROTECT,
+        related_name="events",
+        help_text="Поточний статус івенту",
+    )
     room = models.ForeignKey(
         "Room",
         on_delete=models.CASCADE,

@@ -222,6 +222,7 @@ class Command(BaseCommand):
 
         event1 = SocialEvent.objects.create(
             creator=u4,
+            status=active_sharing,
             title="Вечір настільних ігор",
             description="Граємо в Мафію та Аліас. Приносьте смаколики!",
             start_time=now + timedelta(hours=2),
@@ -234,6 +235,7 @@ class Command(BaseCommand):
 
         event2 = SocialEvent.objects.create(
             creator=u1,
+            status=active_sharing,
             title="Ранкова пробіжка",
             description="Біжимо 5 км навколо Подолу. Зустрічаємось біля входу.",
             start_time=(now + timedelta(days=1)).replace(hour=8, minute=0, second=0),
@@ -245,6 +247,7 @@ class Command(BaseCommand):
 
         event3 = SocialEvent.objects.create(
             creator=u2,
+            status=active_sharing,
             title="Міні-хакатон від ФІ",
             description="Пишемо пет-проєкти всю ніч. Тільки для своїх з ФІ!",
             start_time=now + timedelta(hours=4),
@@ -257,6 +260,7 @@ class Command(BaseCommand):
 
         event4 = SocialEvent.objects.create(
             creator=u5,
+            status=active_sharing,
             title="Спільне приготування піци",
             description="Скидаємось по 100 грн, готуємо на кухні 5 поверху.",
             start_time=(now + timedelta(days=1)).replace(hour=19, minute=0, second=0),
