@@ -114,10 +114,11 @@ class BookingUpdateSerializer(serializers.Serializer):
 class ResourceScheduleSerializer(serializers.ModelSerializer):
     booking_id = serializers.IntegerField(source="id", read_only=True, help_text="ID бронювання")
     status = serializers.CharField(source="status.status", read_only=True, help_text="Статус бронювання")
+    user = UserMapSerializer(read_only=True, help_text="Користувач, який створив бронювання")
 
     class Meta:
         model = Booking
-        fields = ["booking_id", "start_time", "end_time", "status"]
+        fields = ["booking_id", "start_time", "end_time", "status", "user"]
 
 
 class ResourceBlockSerializer(serializers.ModelSerializer):

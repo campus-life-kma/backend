@@ -45,7 +45,7 @@ class BookingsService:
                 start_time__lt=end_range,
                 end_time__gt=start_range,
             )
-            .select_related("status")
+            .select_related("status", "user")
             .order_by("start_time")
         )
 

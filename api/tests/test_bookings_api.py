@@ -249,6 +249,8 @@ class BookingsApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["booking_id"], active_booking.id)
+        self.assertEqual(response.data[0]["user"]["id"], str(self.user.id))
+        self.assertEqual(response.data[0]["user"]["display_name"], self.user.full_name)
 
     def test_my_bookings_returns_my_current_active_and_cancelled_bookings(self):
         active_booking = self.create_booking()
