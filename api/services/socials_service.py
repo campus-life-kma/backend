@@ -314,8 +314,8 @@ class SocialsService:
         except SocialSharingRequest.DoesNotExist as exc:
             raise SocialNotFoundError("Запит на шеринг з таким id не знайдено.") from exc
 
-        if not self.can_manage_sharing_request(user, sharing_request):
-            raise SocialPermissionDeniedError("Ви не маєте прав для завершення цього запиту.")
+        if sharing_request.creator_id != user.id:
+            raise SocialPermissionDeniedError("Тільки автор запиту може позначити його як виконаний.")
 
         sharing_request.status = self.get_status("COMPLETED")
         sharing_request.save(update_fields=["status"])

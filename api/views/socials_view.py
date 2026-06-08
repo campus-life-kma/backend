@@ -835,11 +835,11 @@ class SocialSharingRequestDoneView(APIView):
             401: OpenApiResponse(description="Користувач не авторизований."),
             403: OpenApiResponse(
                 response=dict,
-                description="Недостатньо прав для завершення запиту.",
+                description="Тільки автор запиту може позначити його виконаним.",
                 examples=[
                     OpenApiExample(
-                        "Недостатньо прав",
-                        value={"detail": "Ви не маєте прав для завершення цього запиту."},
+                        "Не автор запиту",
+                        value={"detail": "Тільки автор запиту може позначити його як виконаний."},
                         response_only=True,
                     )
                 ],

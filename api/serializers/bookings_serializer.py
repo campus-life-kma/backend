@@ -57,6 +57,7 @@ class BookingCreateSerializer(serializers.Serializer):
 
 class BookingSerializer(serializers.ModelSerializer):
     user = UserMapSerializer(read_only=True, help_text="Користувач, який створив бронювання")
+    cancelled_by = UserMapSerializer(read_only=True, help_text="Користувач, який скасував бронювання")
     resource_id = serializers.IntegerField(source="resource.id", read_only=True, help_text="ID ресурсу")
     resource_name = serializers.CharField(source="resource.name", read_only=True, help_text="Назва ресурсу")
     room_id = serializers.IntegerField(source="resource.room.id", read_only=True, help_text="ID кімнати ресурсу")
@@ -69,6 +70,7 @@ class BookingSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "user",
+            "cancelled_by",
             "resource_id",
             "resource_name",
             "room_id",

@@ -1,6 +1,7 @@
 from datetime import datetime, time, timedelta
 
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from django.utils.dateparse import parse_date
@@ -118,13 +119,19 @@ class BookingsService:
     def get_my_bookings(self, user):
         active_status = self.get_status("ACTIVE")
         cancelled_status = self.get_status("CANCELLED")
+        visible_status_filter = (
+            Q(status=active_status)
+            | Q(status=cancelled_status, cancelled_by__isnull=True)
+            | (Q(status=cancelled_status) & ~Q(cancelled_by=user))
+        )
+
         return (
             Booking.objects.filter(
                 user=user,
-                status__in=[active_status, cancelled_status],
                 end_time__gte=timezone.now(),
             )
-            .select_related("user", "resource", "resource__room", "resource__room__floor", "status")
+            .filter(visible_status_filter)
+            .select_related("user", "resource", "resource__room", "resource__room__floor", "status", "cancelled_by")
             .order_by("start_time")
         )
 
@@ -136,6 +143,7 @@ class BookingsService:
                 "resource__room",
                 "resource__room__floor",
                 "status",
+                "cancelled_by",
             ).get(id=booking_id)
         except Booking.DoesNotExist as exc:
             raise BookingNotFoundError("Бронювання з таким id не знайдено.") from exc
@@ -148,7 +156,8 @@ class BookingsService:
 
             with transaction.atomic():
                 booking.status = cancelled_status
-                booking.save(update_fields=["status"])
+                booking.cancelled_by = user
+                booking.save(update_fields=["status", "cancelled_by"])
 
                 if user.id != booking.user.id:
                     start_str = timezone.localtime(booking.start_time).strftime("%d.%m.%Y %H:%M")
@@ -168,7 +177,11 @@ class BookingsService:
 
         with transaction.atomic():
             try:
-                booking = Booking.objects.select_for_update().select_related("resource").get(id=booking_id)
+                booking = (
+                    Booking.objects.select_for_update()
+                    .select_related("user", "resource", "resource__room", "resource__room__floor", "status")
+                    .get(id=booking_id)
+                )
             except Booking.DoesNotExist as exc:
                 raise BookingNotFoundError("Бронювання з таким id не знайдено.") from exc
 
@@ -239,7 +252,11 @@ class BookingsService:
 
         users_to_notify = list({b.user for b in bookings_to_cancel if actor and b.user.id != actor.id})
 
-        count = bookings_to_cancel.update(status=cancelled_status)
+        update_data = {"status": cancelled_status}
+        if actor:
+            update_data["cancelled_by"] = actor
+
+        count = bookings_to_cancel.update(**update_data)
 
         if actor and users_to_notify:
             subject = f"Увага: Ресурс '{resource.name}' заблоковано"
@@ -261,7 +278,7 @@ class BookingsService:
     def get_booking(self, booking_id):
         try:
             return Booking.objects.select_related(
-                "user", "resource", "resource__room", "resource__room__floor", "status"
+                "user", "resource", "resource__room", "resource__room__floor", "status", "cancelled_by"
             ).get(id=booking_id)
         except Booking.DoesNotExist as exc:
             raise BookingNotFoundError("Бронювання з таким id не знайдено.") from exc
