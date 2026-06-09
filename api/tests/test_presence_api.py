@@ -84,6 +84,47 @@ class PresenceApiTests(APITestCase):
         self.assertEqual(presence.room, self.second_common_room)
         self.assertGreater(presence.joined_at, old_joined_at)
 
+    def test_presence_me_returns_current_presence(self):
+        now = timezone.now()
+        Presence.objects.create(
+            user=self.user,
+            room=self.common_room,
+            joined_at=now,
+            expires_at=now + timedelta(hours=2),
+        )
+
+        response = self.client.get(reverse("presence-me"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["room_id"], self.common_room.id)
+
+    def test_presence_me_returns_null_when_home(self):
+        response = self.client.get(reverse("presence-me"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNone(response.data)
+
+    def test_presence_me_ignores_expired_presence(self):
+        now = timezone.now()
+        Presence.objects.create(
+            user=self.user,
+            room=self.common_room,
+            joined_at=now - timedelta(hours=3),
+            expires_at=now - timedelta(hours=1),
+        )
+
+        response = self.client.get(reverse("presence-me"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNone(response.data)
+
+    def test_presence_me_requires_authentication(self):
+        self.client.force_authenticate(user=None)
+
+        response = self.client.get(reverse("presence-me"))
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
     def test_go_home_deletes_presence(self):
         now = timezone.now()
         Presence.objects.create(

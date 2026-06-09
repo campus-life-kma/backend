@@ -33,3 +33,7 @@ class PresenceService:
     def go_home(self, user) -> int:
         deleted_count, _ = Presence.objects.filter(user=user).delete()
         return deleted_count
+
+    def get_current(self, user):
+        now = timezone.now()
+        return Presence.objects.select_related("room", "room__floor").filter(user=user, expires_at__gt=now).first()
