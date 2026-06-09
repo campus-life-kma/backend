@@ -112,7 +112,9 @@ class BookingsApiTests(APITestCase):
         end_time = start_time + timedelta(hours=duration_hours)
         return start_time, end_time
 
-    def create_booking(self, user=None, resource=None, start_time=None, end_time=None, status_obj=None, cancelled_by=None):
+    def create_booking(
+        self, user=None, resource=None, start_time=None, end_time=None, status_obj=None, cancelled_by=None
+    ):
         if not start_time or not end_time:
             start_time, end_time = self.future_range()
 

@@ -13,7 +13,9 @@ from api.models import (
     SocialSharingRequest,
     SocialSharingStatus,
     Booking,
-    BookingStatus, TargetType, Announcement,
+    BookingStatus,
+    TargetType,
+    Announcement,
 )
 
 
