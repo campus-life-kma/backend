@@ -17,6 +17,7 @@ from api.models import (
     Room,
     RoomType,
     SocialEvent,
+    SocialSharingStatus,
     TargetType,
     User,
 )
@@ -30,6 +31,8 @@ class RoomBlockApiTests(APITestCase):
 
         self.active_status, _ = BookingStatus.objects.get_or_create(status="ACTIVE")
         self.cancelled_status, _ = BookingStatus.objects.get_or_create(status="CANCELLED")
+        self.active_social_status, _ = SocialSharingStatus.objects.get_or_create(status="ACTIVE")
+        self.cancelled_social_status, _ = SocialSharingStatus.objects.get_or_create(status="CANCELLED")
         TargetType.objects.get_or_create(type="SPECIFIC_USERS")
 
         self.room = Room.objects.create(
@@ -126,6 +129,7 @@ class RoomBlockApiTests(APITestCase):
         now = timezone.now()
         event = SocialEvent.objects.create(
             creator=self.resident,
+            status=self.active_social_status,
             room=self.room,
             title="Вечір настолок",
             start_time=now + timedelta(hours=1),
@@ -137,7 +141,8 @@ class RoomBlockApiTests(APITestCase):
         response = self.client.patch(reverse("room-block", args=[self.room.id]))
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertFalse(SocialEvent.objects.filter(id=event.id).exists())
+        event.refresh_from_db()
+        self.assertEqual(event.status, self.cancelled_social_status)
         self.assertTrue(
             Announcement.objects.filter(target_users=self.resident, title__startswith="Скасування події").exists()
         )

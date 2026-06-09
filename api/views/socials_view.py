@@ -128,6 +128,7 @@ class FeedView(APIView):
                                     "type": "event",
                                     "id": 12,
                                     "title": "Граємо в Мафію",
+                                    "status": "ACTIVE",
                                     "start_time": "2026-05-23T20:00:00Z",
                                     "creator": {
                                         "id": "0c3a2cb7-7ef5-4c0f-9d36-1b7f0eb05c74",
@@ -298,6 +299,7 @@ class SocialEventJoinView(APIView):
                             "type": "event",
                             "id": 12,
                             "title": "Граємо в Мафію",
+                            "status": "ACTIVE",
                             "description": "Збираємось у спільній кімнаті.",
                             "start_time": "2026-05-23T20:00:00Z",
                             "end_time": "2026-05-23T22:00:00Z",
@@ -400,6 +402,7 @@ class SocialEventLeaveView(APIView):
                             "type": "event",
                             "id": 12,
                             "title": "Граємо в Мафію",
+                            "status": "ACTIVE",
                             "description": "Збираємось у спільній кімнаті.",
                             "start_time": "2026-05-23T20:00:00Z",
                             "end_time": "2026-05-23T22:00:00Z",
@@ -474,6 +477,7 @@ class SocialEventDetailView(APIView):
                             "type": "event",
                             "id": 12,
                             "title": "Граємо в Мафію",
+                            "status": "ACTIVE",
                             "description": "Збираємось у спільній кімнаті, новачкам усе пояснимо на місці.",
                             "start_time": "2026-05-23T20:00:00Z",
                             "end_time": "2026-05-23T22:00:00Z",
@@ -627,6 +631,7 @@ class SocialEventDetailView(APIView):
                             "type": "event",
                             "id": 12,
                             "title": "Нова назва для мафії",
+                            "status": "ACTIVE",
                             "description": "Збираємось у спільній кімнаті, новачкам усе пояснимо на місці.",
                             "start_time": "2026-05-23T20:00:00Z",
                             "end_time": "2026-05-23T23:00:00Z",
@@ -830,11 +835,11 @@ class SocialSharingRequestDoneView(APIView):
             401: OpenApiResponse(description="Користувач не авторизований."),
             403: OpenApiResponse(
                 response=dict,
-                description="Недостатньо прав для завершення запиту.",
+                description="Тільки автор запиту може позначити його виконаним.",
                 examples=[
                     OpenApiExample(
-                        "Недостатньо прав",
-                        value={"detail": "Ви не маєте прав для завершення цього запиту."},
+                        "Не автор запиту",
+                        value={"detail": "Тільки автор запиту може позначити його як виконаний."},
                         response_only=True,
                     )
                 ],
@@ -1170,6 +1175,7 @@ class UserSocialProfileView(APIView):
                                     "type": "event",
                                     "id": 12,
                                     "title": "Граємо в Мафію",
+                                    "status": "ACTIVE",
                                     "start_time": "2026-05-23T20:00:00Z",
                                     "creator": {
                                         "id": "0c3a2cb7-7ef5-4c0f-9d36-1b7f0eb05c74",

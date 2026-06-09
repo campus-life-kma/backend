@@ -72,7 +72,9 @@ class RoomMapSerializer(serializers.ModelSerializer):
     @extend_schema_field(SocialEventMapSerializer(many=True))
     def get_active_events(self, obj):
         now = timezone.now()
-        events = obj.events.filter(start_time__lte=now, end_time__gte=now)
+        events = obj.events.filter(status__status="ACTIVE", start_time__lte=now, end_time__gte=now).select_related(
+            "creator", "status"
+        )
         return SocialEventMapSerializer(events, many=True, context=self.context).data
 
 
@@ -90,5 +92,7 @@ class FloorMapDataSerializer(serializers.ModelSerializer):
     @extend_schema_field(SocialEventMapSerializer(many=True))
     def get_active_floor_events(self, obj):
         now = timezone.now()
-        events = obj.events.filter(start_time__lte=now, end_time__gte=now)
+        events = obj.events.filter(status__status="ACTIVE", start_time__lte=now, end_time__gte=now).select_related(
+            "creator", "status"
+        )
         return SocialEventMapSerializer(events, many=True, context=self.context).data

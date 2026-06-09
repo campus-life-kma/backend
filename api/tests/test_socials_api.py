@@ -95,6 +95,7 @@ class SocialsApiTests(APITestCase):
         now = timezone.now()
         data = {
             "creator": creator or self.user,
+            "status": self.active_status,
             "title": "Настільні ігри",
             "description": "Граємо ввечері",
             "start_time": now + timedelta(hours=1),
@@ -159,6 +160,8 @@ class SocialsApiTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         event = SocialEvent.objects.get(id=response.data["id"])
+        self.assertEqual(response.data["status"], "ACTIVE")
+        self.assertEqual(event.status.status, "ACTIVE")
         self.assertTrue(event.participants.filter(id=self.user.id).exists())
 
     def test_get_event_detail_returns_participants(self):
@@ -223,6 +226,20 @@ class SocialsApiTests(APITestCase):
 
         self.assertEqual(done_response.status_code, status.HTTP_200_OK)
         self.assertEqual(done_response.data["status"], "COMPLETED")
+
+    def test_moderator_cannot_complete_other_users_sharing_request(self):
+        sharing_request = SocialSharingRequest.objects.create(
+            creator=self.user,
+            title="Потрібен подовжувач",
+            status=self.active_status,
+        )
+        self.client.force_authenticate(user=self.moderator)
+
+        response = self.client.patch(reverse("sharing-request-done", kwargs={"request_id": sharing_request.id}))
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        sharing_request.refresh_from_db()
+        self.assertEqual(sharing_request.status.status, "ACTIVE")
 
     @patch("api.services.announcements_service.AnnouncementsService.create_announcement")
     def test_moderator_can_delete_sharing_request_on_own_floor(self, mock_create_announcement):
