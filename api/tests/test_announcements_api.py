@@ -171,6 +171,51 @@ class AnnouncementsApiTests(APITestCase):
         target_types = {item["type"] for item in response.data}
         self.assertEqual(target_types, {"GLOBAL", "FLOOR", "ROOM", "SPECIFIC_USERS"})
 
+    def test_resident_cannot_get_announcement_recipients(self):
+        response = self.client.get(reverse("announcement-recipients"))
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_admin_can_get_announcement_recipients_with_ordering(self):
+        inactive_user = User.objects.create(
+            email="inactive-recipient@ukma.edu.ua",
+            full_name="Неактивний Адресат",
+            role=self.resident_role,
+            room=self.room,
+            is_activated=False,
+        )
+        self.client.force_authenticate(user=self.admin)
+
+        response = self.client.get(reverse("announcement-recipients"), {"ordering": "-email"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        emails = [item["email"] for item in response.data]
+        self.assertEqual(emails, sorted(emails, reverse=True))
+        self.assertIn(self.user.email, emails)
+        self.assertIn(self.other_user.email, emails)
+        self.assertNotIn(inactive_user.email, emails)
+
+    def test_moderator_gets_only_own_floor_recipients(self):
+        self.client.force_authenticate(user=self.moderator)
+
+        response = self.client.get(reverse("announcement-recipients"), {"ordering": "room,display_name"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        emails = {item["email"] for item in response.data}
+        self.assertEqual(emails, {self.user.email, self.moderator.email})
+        floor_ids = {item["floor_id"] for item in response.data}
+        self.assertEqual(floor_ids, {self.floor.id})
+
+    def test_announcement_recipients_support_search_and_invalid_ordering(self):
+        self.client.force_authenticate(user=self.admin)
+
+        search_response = self.client.get(reverse("announcement-recipients"), {"q": "Інший"})
+        invalid_response = self.client.get(reverse("announcement-recipients"), {"ordering": "unknown"})
+
+        self.assertEqual(search_response.status_code, status.HTTP_200_OK)
+        self.assertEqual([item["email"] for item in search_response.data], [self.other_user.email])
+        self.assertEqual(invalid_response.status_code, status.HTTP_400_BAD_REQUEST)
+
     def test_moderator_can_create_floor_announcement_for_own_floor(self):
         self.client.force_authenticate(user=self.moderator)
 
@@ -226,6 +271,41 @@ class AnnouncementsApiTests(APITestCase):
         self.assertEqual(response.data["target_user_ids"], [str(self.user.id)])
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, [self.user.email])
+
+    def test_moderator_can_create_specific_users_announcement_for_own_floor(self):
+        self.client.force_authenticate(user=self.moderator)
+
+        response = self.client.post(
+            reverse("announcement-create"),
+            {
+                "title": "Адресне для поверху",
+                "message": "Повідомлення конкретним мешканцям мого поверху",
+                "target_type": "SPECIFIC_USERS",
+                "target_users": [str(self.user.id), str(self.moderator.id)],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(set(response.data["target_user_ids"]), {str(self.user.id), str(self.moderator.id)})
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(set(mail.outbox[0].to), {self.user.email, self.moderator.email})
+
+    def test_moderator_cannot_create_specific_users_announcement_for_other_floor(self):
+        self.client.force_authenticate(user=self.moderator)
+
+        response = self.client.post(
+            reverse("announcement-create"),
+            {
+                "title": "Чужий поверх",
+                "message": "Не має пройти",
+                "target_type": "SPECIFIC_USERS",
+                "target_users": [str(self.other_user.id)],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_create_rejects_past_expires_at(self):
         self.client.force_authenticate(user=self.admin)

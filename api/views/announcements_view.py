@@ -9,6 +9,7 @@ from api.serializers.announcements_serializer import (
     AnnouncementCreateSerializer,
     AnnouncementSerializer,
 )
+from api.serializers.user_serializer import AnnouncementRecipientSerializer
 from api.services.announcements_service import (
     AnnouncementEmailSendError,
     AnnouncementError,
@@ -138,6 +139,129 @@ class AnnouncementReadView(APIView):
             return Response({"detail": str(exc)}, status=get_announcement_error_status(exc))
 
         return Response({"detail": "Оголошення позначено як прочитане."}, status=status.HTTP_200_OK)
+
+
+class AnnouncementRecipientsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=["Оголошення"],
+        summary="Отримати доступних адресатів оголошення",
+        description=(
+            "Повертає компактний список активованих користувачів для створення адресного оголошення. "
+            "Адміністратор бачить усіх активованих користувачів. Голова поверху бачить лише мешканців свого поверху. "
+            "Підтримує пошук, фільтрацію та сортування за полями, які повертаються в списку."
+        ),
+        parameters=[
+            OpenApiParameter(
+                name="q",
+                type=OpenApiTypes.STR,
+                location="query",
+                required=False,
+                description="Пошук за іменем, поштою, кімнатою, роллю, факультетом або спеціальністю.",
+            ),
+            OpenApiParameter(
+                name="ordering",
+                type=OpenApiTypes.STR,
+                location="query",
+                required=False,
+                description=(
+                    "Сортування. Доступні поля: id, display_name, email, role, floor, room, faculty, major, year. "
+                    "Для спадання додайте мінус, наприклад -floor,email."
+                ),
+            ),
+            OpenApiParameter(name="floor_id", type=OpenApiTypes.INT, location="query", required=False),
+            OpenApiParameter(name="room_id", type=OpenApiTypes.INT, location="query", required=False),
+            OpenApiParameter(name="faculty_id", type=OpenApiTypes.INT, location="query", required=False),
+            OpenApiParameter(name="major_id", type=OpenApiTypes.INT, location="query", required=False),
+            OpenApiParameter(name="role", type=OpenApiTypes.STR, location="query", required=False),
+            OpenApiParameter(name="year", type=OpenApiTypes.INT, location="query", required=False),
+        ],
+        responses={
+            200: OpenApiResponse(
+                response=AnnouncementRecipientSerializer(many=True),
+                description="Адресатів оголошення отримано.",
+                examples=[
+                    OpenApiExample(
+                        "Список адресатів",
+                        value=[
+                            {
+                                "id": "0c3a2cb7-7ef5-4c0f-9d36-1b7f0eb05c74",
+                                "display_name": "Коваленко Дмитро",
+                                "email": "d.kovalenko@ukma.edu.ua",
+                                "role_name": "RESIDENT",
+                                "floor_id": 4,
+                                "floor_number": 4,
+                                "room_id": 15,
+                                "room_name": "41/2",
+                                "faculty_name": "Факультет інформатики",
+                                "major_name": "ІПЗ",
+                                "year": 3,
+                            }
+                        ],
+                        response_only=True,
+                    )
+                ],
+            ),
+            400: OpenApiResponse(
+                response=dict,
+                description="Некоректні параметри запиту.",
+                examples=[
+                    OpenApiExample(
+                        "Некоректне сортування",
+                        value={
+                            "detail": (
+                                "Некоректне сортування. Доступні поля: id, display_name, email, role, floor, room, "
+                                "faculty, major, year."
+                            )
+                        },
+                        response_only=True,
+                    )
+                ],
+            ),
+            401: OpenApiResponse(description="Користувач не авторизований."),
+            403: OpenApiResponse(
+                response=dict,
+                description="Недостатньо прав для перегляду адресатів.",
+                examples=[
+                    OpenApiExample(
+                        "Недостатньо прав",
+                        value={"detail": "У вас немає прав для перегляду адресатів оголошень."},
+                        response_only=True,
+                    )
+                ],
+            ),
+        },
+    )
+    def get(self, request):
+        service = AnnouncementsService()
+
+        try:
+            filters = self.get_filters(request.query_params)
+            recipients = service.get_available_recipients(request.user, filters)
+        except AnnouncementError as exc:
+            return Response({"detail": str(exc)}, status=get_announcement_error_status(exc))
+
+        serializer = AnnouncementRecipientSerializer(recipients, many=True, context={"request": request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def get_filters(self, query_params):
+        filters = {
+            "q": query_params.get("q", "").strip(),
+            "ordering": query_params.get("ordering", "").strip(),
+            "role": query_params.get("role", "").strip(),
+        }
+
+        for key in ["floor_id", "room_id", "faculty_id", "major_id", "year"]:
+            value = query_params.get(key)
+            if not value:
+                continue
+            try:
+                filters[key] = int(value)
+            except ValueError as exc:
+                raise AnnouncementError(f"Параметр {key} має бути числом.") from exc
+
+        return filters
 
 
 class AnnouncementCreateView(APIView):

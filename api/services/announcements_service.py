@@ -2,7 +2,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
-from api.models import Announcement, AnnouncementRead, TargetType
+from api.models import Announcement, AnnouncementRead, TargetType, User
 from api.services.announcement_email_service import AnnouncementEmailService
 
 
@@ -30,6 +30,18 @@ class AnnouncementEmailSendError(AnnouncementError):
 
 
 class AnnouncementsService:
+    recipient_ordering_fields = {
+        "id": "id",
+        "display_name": "full_name",
+        "email": "email",
+        "role": "role__name",
+        "floor": "room__floor__number",
+        "room": "room__name",
+        "faculty": "major__faculty__name",
+        "major": "major__name",
+        "year": "year",
+    }
+
     def get_active_announcements(self, user):
         now = timezone.now()
         user_floor_id = self.get_user_floor_id(user)
@@ -53,6 +65,85 @@ class AnnouncementsService:
         )
 
         return announcements
+
+    def get_available_recipients(self, user, filters):
+        if not user.is_admin and not user.is_moderator:
+            raise AnnouncementPermissionDeniedError("У вас немає прав для перегляду адресатів оголошень.")
+
+        recipients = self.get_recipient_base_queryset()
+        recipients = self.scope_recipients_for_user(user, recipients, filters)
+        recipients = self.apply_recipient_filters(recipients, filters)
+        recipients = self.apply_recipient_search(recipients, filters.get("q"))
+        ordering = filters.get("ordering") or "display_name"
+        return recipients.order_by(*self.get_recipient_ordering(ordering))
+
+    def get_recipient_base_queryset(self):
+        return (
+            User.objects.filter(is_activated=True)
+            .exclude(email="")
+            .select_related("role", "room", "room__floor", "room__floor__dormitory", "major", "major__faculty")
+        )
+
+    def scope_recipients_for_user(self, user, recipients, filters):
+        if user.is_moderator:
+            user_floor_id = self.get_user_floor_id(user)
+            if not user_floor_id:
+                raise AnnouncementPermissionDeniedError("Голова поверху має бути прив'язаний до свого поверху.")
+            return recipients.filter(room__floor_id=user_floor_id)
+
+        floor_id = filters.get("floor_id")
+        if floor_id:
+            return recipients.filter(room__floor_id=floor_id)
+
+        return recipients
+
+    def apply_recipient_filters(self, recipients, filters):
+        filter_map = {
+            "room_id": "room_id",
+            "faculty_id": "major__faculty_id",
+            "major_id": "major_id",
+            "role": "role__name",
+            "year": "year",
+        }
+
+        for filter_key, query_key in filter_map.items():
+            value = filters.get(filter_key)
+            if value:
+                recipients = recipients.filter(**{query_key: value})
+
+        return recipients
+
+    def apply_recipient_search(self, recipients, query):
+        if not query:
+            return recipients
+
+        return recipients.filter(
+            Q(full_name__icontains=query)
+            | Q(email__icontains=query)
+            | Q(room__name__icontains=query)
+            | Q(role__name__icontains=query)
+            | Q(major__name__icontains=query)
+            | Q(major__faculty__name__icontains=query)
+        )
+
+    def get_recipient_ordering(self, ordering):
+        fields = []
+        for raw_field in ordering.split(","):
+            raw_field = raw_field.strip()
+            if not raw_field:
+                continue
+
+            descending = raw_field.startswith("-")
+            field_name = raw_field[1:] if descending else raw_field
+            mapped_field = self.recipient_ordering_fields.get(field_name)
+            if not mapped_field:
+                allowed_fields = ", ".join(self.recipient_ordering_fields)
+                raise AnnouncementValidationError(f"Некоректне сортування. Доступні поля: {allowed_fields}.")
+
+            fields.append(f"-{mapped_field}" if descending else mapped_field)
+
+        fields.append("email")
+        return fields
 
     def mark_as_read(self, user, announcement_id):
         try:
