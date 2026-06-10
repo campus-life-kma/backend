@@ -190,3 +190,63 @@ class UserDetailView(APIView):
 
         response_serializer = UserFullSerializer(updated_user)
         return Response(response_serializer.data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        tags=["Користувач"],
+        summary="Виселити користувача з гуртожитку",
+        request=None,
+        parameters=[
+            OpenApiParameter(
+                name="user_id",
+                type=OpenApiTypes.UUID,
+                location="path",
+                required=True,
+                description="Id користувача, якого потрібно виселити та видалити з системи",
+                examples=[OpenApiExample(name="Користувач 1", value="906fb366-a8db-4f14-9ab4-00e5869c21fa")],
+            )
+        ],
+        description=(
+            "Адмінська дія для виселення користувача. "
+            "Перед видаленням бекенд надсилає користувачу email-повідомлення. "
+            "Якщо лист не вдалося надіслати, користувача не буде видалено."
+        ),
+        responses={
+            204: OpenApiResponse(description="Користувача успішно виселено та видалено з бази даних."),
+            400: OpenApiResponse(
+                description="Некоректна дія.",
+                response=dict,
+                examples=[
+                    OpenApiExample(
+                        "Спроба видалити себе",
+                        value={"detail": "Адміністратор не може виселити самого себе."},
+                    ),
+                    OpenApiExample(
+                        "Email не надіслано",
+                        value={"detail": "Не вдалося надіслати email-сповіщення користувачу. Виселення скасовано."},
+                    ),
+                ],
+            ),
+            401: OpenApiResponse(description="Не авторизовано."),
+            403: OpenApiResponse(
+                description="Недостатньо прав.",
+                response=dict,
+                examples=[
+                    OpenApiExample(
+                        "Не адмін",
+                        value={"detail": "Лише адміністратор може виселяти користувачів."},
+                    )
+                ],
+            ),
+            404: OpenApiResponse(
+                description="Користувача не знайдено.",
+                response=dict,
+                examples=[
+                    OpenApiExample("Користувач відсутній", value={"detail": "Користувача з таким id не знайдено!"})
+                ],
+            ),
+        },
+    )
+    def delete(self, request, user_id):
+        user_service = UserService()
+        user_service.evict_user(acting_user=request.user, target_user_id=user_id)
+        return Response(status=status.HTTP_204_NO_CONTENT)

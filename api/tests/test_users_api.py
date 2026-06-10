@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from django.core import mail
 from django.test import override_settings
 from django.urls import reverse
@@ -130,6 +132,39 @@ class UsersApiTests(APITestCase):
         self.assertIn("Рівень навчання", mail.outbox[0].body)
         self.assertIn("Магістр", mail.outbox[0].body)
         self.assertIn("Оновлений Користувач", mail.outbox[0].body)
+
+    def test_admin_can_evict_user_and_user_receives_email(self):
+        response = self.client.delete(reverse("user-info", args=[self.user.id]))
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(User.objects.filter(id=self.user.id).exists())
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, [self.user.email])
+        self.assertIn("видалено з бази мешканців", mail.outbox[0].body)
+
+    def test_admin_cannot_evict_self(self):
+        response = self.client.delete(reverse("user-info", args=[self.admin.id]))
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertTrue(User.objects.filter(id=self.admin.id).exists())
+
+    def test_resident_cannot_evict_user(self):
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.delete(reverse("user-info", args=[self.other_floor_user.id]))
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertTrue(User.objects.filter(id=self.other_floor_user.id).exists())
+
+    def test_evict_user_rolls_back_when_email_fails(self):
+        with patch("api.services.user_service.send_mail", side_effect=RuntimeError("smtp error")):
+            response = self.client.delete(reverse("user-info", args=[self.user.id]))
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data["detail"], "Не вдалося надіслати email-сповіщення користувачу. Виселення скасовано."
+        )
+        self.assertTrue(User.objects.filter(id=self.user.id).exists())
 
     def test_admin_cannot_set_invalid_master_year(self):
         response = self.client.patch(

@@ -57,6 +57,24 @@ class UserService:
 
             return serializer.save()
 
+    def evict_user(self, acting_user: User, target_user_id: str):
+        target_user = self.get_user_by_id(target_user_id)
+
+        if not acting_user.is_admin:
+            raise PermissionDenied(detail="Лише адміністратор може виселяти користувачів.")
+
+        if acting_user.id == target_user.id:
+            raise ValidationError({"detail": "Адміністратор не може виселити самого себе."})
+
+        with transaction.atomic():
+            try:
+                self.notify_user_evicted(target_user)
+            except Exception as exc:
+                raise ValidationError(
+                    {"detail": "Не вдалося надіслати email-сповіщення користувачу. Виселення скасовано."}
+                ) from exc
+            target_user.delete()
+
     def can_moderator_edit_profile(self, acting_user: User, target_user: User) -> bool:
         return bool(
             acting_user.is_moderator
@@ -182,4 +200,23 @@ class UserService:
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[user.email],
             fail_silently=True,
+        )
+
+    def notify_user_evicted(self, user: User):
+        if not user.email:
+            return
+
+        body = (
+            "Вітаємо!\n\n"
+            "Адміністрація Campus Life деактивувала ваш профіль у системі гуртожитку.\n"
+            "Це означає, що ваш акаунт було видалено з бази мешканців, і доступ до платформи більше недоступний.\n\n"
+            "Якщо ви вважаєте, що сталася помилка, зверніться до адміністрації гуртожитку."
+        )
+
+        send_mail(
+            subject="Campus Life: ваш профіль видалено з системи гуртожитку",
+            message=body,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[user.email],
+            fail_silently=False,
         )
