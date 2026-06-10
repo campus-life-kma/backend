@@ -40,6 +40,7 @@ from api.views.socials_view import (
     UserSocialProfileView,
     SocialEventDetailView,
 )
+from api.views.statistics_view import StatisticsSummaryView
 from api.views.user_view import UserDetailView
 
 urlpatterns = [
@@ -65,6 +66,7 @@ urlpatterns = [
     path("announcements/recipients/", AnnouncementRecipientsView.as_view(), name="announcement-recipients"),
     path("announcements/<int:announcement_id>/read/", AnnouncementReadView.as_view(), name="announcement-read"),
     path("announcements/", AnnouncementCreateView.as_view(), name="announcement-create"),
+    path("statistics/summary/", StatisticsSummaryView.as_view(), name="statistics-summary"),
     path("resources/<int:resource_id>/schedule/", ResourceScheduleView.as_view(), name="resource-schedule"),
     path("resources/<int:resource_id>/block/", ResourceBlockView.as_view(), name="resource-block"),
     path("resources/<int:resource_id>/unblock/", ResourceUnblockView.as_view(), name="resource-unblock"),
