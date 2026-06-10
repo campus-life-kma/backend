@@ -45,6 +45,11 @@ class User(AbstractUser):
         MASTER = "MASTER", "Магістр"
         PHD = "PHD", "Аспірант"
 
+    class Position(models.TextChoices):
+        STUDENT = "STUDENT", "Студент"
+        TEACHER = "TEACHER", "Викладач"
+        EMPLOYEE = "EMPLOYEE", "Працівник"
+
     id = models.UUIDField(
         primary_key=True, default=uuid.uuid4, editable=False, help_text="Унікальний ідентифікатор користувача (UUID)"
     )
@@ -53,10 +58,19 @@ class User(AbstractUser):
     email = models.EmailField(unique=True, help_text="Корпоративна електронна пошта (наприклад, @ukma.edu.ua)")
 
     full_name = models.CharField(max_length=500, null=True, blank=True, help_text="Повне ім'я мешканця")
+    
+    position = models.CharField(
+        max_length=20,
+        choices=Position.choices,
+        default=Position.STUDENT,
+        help_text="Позиція у ВНЗ (Студент, Викладач, Працівник)",
+    )
+
     education_level = models.CharField(
         max_length=20,
         choices=EducationLevel.choices,
-        default=EducationLevel.BACHELOR,
+        null=True,
+        blank=True,
         help_text="Рівень навчання користувача: бакалаврат, магістратура або аспірантура",
     )
     year = models.SmallIntegerField(
@@ -87,6 +101,14 @@ class User(AbstractUser):
         null=True,
         blank=True,
         help_text="Спеціальність, на якій навчається мешканець",
+    )
+    faculty = models.ForeignKey(
+        Faculty,
+        related_name="direct_users",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text="Факультет, до якого належить викладач",
     )
 
     status = models.CharField(

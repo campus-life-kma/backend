@@ -36,6 +36,10 @@ docker-compose exec backend python manage.py migrate
 ```bash
 docker-compose exec backend python manage.py seed_dev
 ```
+Або для симуляції великого навантаження та великої кількості даних:
+```bash
+docker-compose exec backend python manage.py seed_massive_data
+```
 
 5. **Доступи:**
    - Бекенд: http://localhost:8888

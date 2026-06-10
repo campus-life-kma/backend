@@ -197,6 +197,7 @@ class Command(BaseCommand):
             is_activated=True,
             full_name="Староста 4-го Поверху",
             major=se_major,
+            position=User.Position.STUDENT,
         )
         admin = User.objects.create(
             email="admin@ukma.edu.ua",
@@ -209,6 +210,7 @@ class Command(BaseCommand):
             full_name="Головний Адміністратор",
             status="Бог сервера",
             bio="Маю доступ до всіх таблиць бази даних.",
+            position=User.Position.EMPLOYEE,
         )
 
         self.stdout.write("Генерація запитів на шеринг...")
