@@ -28,6 +28,18 @@ class UserBaseSerializer(serializers.ModelSerializer):
 
 class UserFullSerializer(serializers.ModelSerializer):
     display_name = serializers.SerializerMethodField()
+    role_id = serializers.IntegerField(
+        source="role.id", read_only=True, allow_null=True, help_text="ID ролі користувача"
+    )
+    room_id = serializers.IntegerField(
+        source="room.id", read_only=True, allow_null=True, help_text="ID кімнати проживання"
+    )
+    floor_id = serializers.IntegerField(
+        source="room.floor.id", read_only=True, allow_null=True, help_text="ID поверху проживання"
+    )
+    major_id = serializers.IntegerField(
+        source="major.id", read_only=True, allow_null=True, help_text="ID спеціальності"
+    )
 
     role_name = serializers.CharField(
         source="role.name", read_only=True, help_text="Системна роль, яка визначає рівень доступу до функцій платформи"
@@ -58,15 +70,20 @@ class UserFullSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             "id",
+            "role_id",
             "role_name",
             "display_name",
             "email",
             "photo",
+            "room_id",
+            "floor_id",
+            "major_id",
             "dormitory_name",
             "floor_number",
             "room_name",
             "faculty_name",
             "major_name",
+            "education_level",
             "year",
             "status",
             "bio",
@@ -95,10 +112,41 @@ class AdminUserUpdateSerializer(serializers.ModelSerializer):
             "photo",
             "room",
             "major",
+            "education_level",
             "year",
             "status",
             "bio",
         ]
+
+        extra_kwargs = {
+            "education_level": {
+                "help_text": "Рівень навчання: BACHELOR, MASTER або PHD.",
+                "error_messages": {
+                    "invalid_choice": "Оберіть коректний рівень навчання: BACHELOR, MASTER або PHD.",
+                },
+            },
+            "year": {
+                "help_text": "Курс або рік навчання. Для бакалавра: 1-4, для магістра: 1-2, для аспіранта: 1-4.",
+                "error_messages": {
+                    "invalid": "Курс або рік навчання має бути числом.",
+                },
+            },
+        }
+
+    def validate(self, attrs):
+        education_level = attrs.get("education_level", getattr(self.instance, "education_level", None))
+        year = attrs.get("year", getattr(self.instance, "year", None))
+
+        if year is None:
+            return attrs
+
+        if education_level == User.EducationLevel.MASTER and year not in (1, 2):
+            raise serializers.ValidationError({"year": ["Для магістратури можна вказати лише 1 або 2 курс."]})
+
+        if education_level in (User.EducationLevel.BACHELOR, User.EducationLevel.PHD) and year not in (1, 2, 3, 4):
+            raise serializers.ValidationError({"year": ["Для цього рівня навчання можна вказати значення від 1 до 4."]})
+
+        return attrs
 
 
 class UserMapSerializer(serializers.ModelSerializer):

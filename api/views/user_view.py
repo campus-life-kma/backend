@@ -45,6 +45,7 @@ class UserDetailView(APIView):
                             "room_name": "41/2",
                             "faculty_name": "Тестовий факультет",
                             "major_name": "Тестова спеціальність",
+                            "education_level": "BACHELOR",
                             "year": "4",
                             "status": "Вчуся",
                             "bio": "Працюю над проєктами та дедлайнами.",
@@ -90,8 +91,28 @@ class UserDetailView(APIView):
         description=(
             "Ендпоінт для часткового оновлення (PATCH) профілю користувача. "
             "Звичайний мешканець може редагувати лише власний профіль (доступні поля: full_name, photo, status, bio). "
-            "Адміністратор може редагувати будь-який профіль і має доступ до всіх полів (включаючи role, room, тощо)."
+            "Адміністратор може редагувати будь-який профіль і має доступ до всіх полів "
+            "(включаючи role, room, major, education_level, year, email). "
+            "Під час зміни кімнати бекенд перевіряє, що кімната житлова, не заблокована і має вільні місця. "
+            "Після успішного адмінського оновлення активований користувач отримує лист зі списком змінених полів."
         ),
+        examples=[
+            OpenApiExample(
+                "Адмінське оновлення профілю",
+                value={
+                    "full_name": "Коваленко Дмитро",
+                    "email": "user1@ukma.edu.ua",
+                    "role": 3,
+                    "room": 12,
+                    "major": 4,
+                    "education_level": "MASTER",
+                    "year": 2,
+                    "status": "Готуюсь до сесії",
+                    "bio": "Люблю настільні ігри.",
+                },
+                request_only=True,
+            )
+        ],
         responses={
             200: OpenApiResponse(
                 response=UserFullSerializer,
@@ -101,15 +122,20 @@ class UserDetailView(APIView):
                         name="Оновлений Користувач",
                         value={
                             "id": "906fb366-a8db-4f14-9ab4-00e5869c21fa",
+                            "role_id": 3,
                             "role_name": "RESIDENT",
                             "display_name": "Коваленко Дмитро",
                             "email": "user1@ukma.edu.ua",
                             "photo": "http://localhost:8888/media/avatars/1.jpg",
+                            "room_id": 12,
+                            "floor_id": 4,
+                            "major_id": 4,
                             "dormitory_name": "Маккейна",
                             "floor_number": "4",
                             "room_name": "41/2",
                             "faculty_name": "Тестовий факультет",
                             "major_name": "Тестова спеціальність",
+                            "education_level": "BACHELOR",
                             "year": "4",
                             "status": "Готуюсь до сесії - не турбувати!",
                             "bio": "Оновлений опис профілю. Люблю настільні ігри.",
@@ -123,7 +149,15 @@ class UserDetailView(APIView):
                 examples=[
                     OpenApiExample(
                         "Помилка валідації", value={"major": ['Некоректний первинний ключ "999" - об\'єкт не існує.']}
-                    )
+                    ),
+                    OpenApiExample("Кімната заповнена", value={"room": ["У цій кімнаті немає вільних місць."]}),
+                    OpenApiExample(
+                        "Кімната заблокована",
+                        value={"room": ["Ця кімната заблокована, тому поселення в неї недоступне."]},
+                    ),
+                    OpenApiExample(
+                        "Нежитлова кімната", value={"room": ["Користувача можна поселити лише в житлову кімнату."]}
+                    ),
                 ],
             ),
             401: OpenApiResponse(

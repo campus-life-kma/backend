@@ -1,4 +1,5 @@
 from drf_spectacular.utils import extend_schema, OpenApiResponse, OpenApiExample
+from django.db.models import Count
 from rest_framework import generics
 from rest_framework.permissions import IsAuthenticated
 
@@ -222,7 +223,12 @@ class FloorListView(generics.ListAPIView):
     },
 )
 class RoomListView(generics.ListAPIView):
-    queryset = Room.objects.select_related("floor").all().order_by("floor_id", "name")
+    queryset = (
+        Room.objects.select_related("floor", "room_type")
+        .annotate(current_residents_count=Count("user"))
+        .all()
+        .order_by("floor_id", "name")
+    )
     serializer_class = RoomListSerializer
     permission_classes = [IsAuthenticated]
     pagination_class = None

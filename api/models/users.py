@@ -40,6 +40,11 @@ class Role(models.Model):
 
 
 class User(AbstractUser):
+    class EducationLevel(models.TextChoices):
+        BACHELOR = "BACHELOR", "Бакалавр"
+        MASTER = "MASTER", "Магістр"
+        PHD = "PHD", "Аспірант"
+
     id = models.UUIDField(
         primary_key=True, default=uuid.uuid4, editable=False, help_text="Унікальний ідентифікатор користувача (UUID)"
     )
@@ -48,11 +53,17 @@ class User(AbstractUser):
     email = models.EmailField(unique=True, help_text="Корпоративна електронна пошта (наприклад, @ukma.edu.ua)")
 
     full_name = models.CharField(max_length=500, null=True, blank=True, help_text="Повне ім'я мешканця")
+    education_level = models.CharField(
+        max_length=20,
+        choices=EducationLevel.choices,
+        default=EducationLevel.BACHELOR,
+        help_text="Рівень навчання користувача: бакалаврат, магістратура або аспірантура",
+    )
     year = models.SmallIntegerField(
         null=True,
         blank=True,
         validators=[MinValueValidator(1), MaxValueValidator(4)],
-        help_text="Курс навчання (від 1 до 4)",
+        help_text="Курс або рік навчання (від 1 до 4; для магістратури доступні 1-2)",
     )
 
     room = models.ForeignKey(
