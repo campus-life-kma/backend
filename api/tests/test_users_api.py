@@ -68,6 +68,13 @@ class UsersApiTests(APITestCase):
             room=self.room,
             is_activated=True,
         )
+        self.moderator = User.objects.create(
+            email="users-moderator@ukma.edu.ua",
+            full_name="Модератор Профілів",
+            role=self.moderator_role,
+            room=self.room,
+            is_activated=True,
+        )
         self.user = User.objects.create(
             email="profile-user@ukma.edu.ua",
             full_name="Користувач Профілю",
@@ -84,6 +91,13 @@ class UsersApiTests(APITestCase):
             full_name="Мешканець Повної Кімнати",
             role=self.resident_role,
             room=self.full_room,
+            is_activated=True,
+        )
+        self.other_floor_user = User.objects.create(
+            email="other-floor-profile-user@ukma.edu.ua",
+            full_name="Мешканець Іншого Поверху",
+            role=self.resident_role,
+            room=self.available_room,
             is_activated=True,
         )
         self.client.force_authenticate(user=self.admin)
@@ -144,6 +158,47 @@ class UsersApiTests(APITestCase):
         self.user.refresh_from_db()
         self.assertEqual(self.user.education_level, User.EducationLevel.PHD)
         self.assertEqual(self.user.year, 4)
+
+    def test_moderator_can_update_status_and_bio_for_user_on_own_floor(self):
+        self.client.force_authenticate(user=self.moderator)
+
+        response = self.client.patch(
+            reverse("user-info", args=[self.user.id]),
+            {"status": "Оновлено модератором", "bio": "Біо після модерації"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.status, "Оновлено модератором")
+        self.assertEqual(self.user.bio, "Біо після модерації")
+
+    def test_moderator_cannot_update_other_profile_fields(self):
+        self.client.force_authenticate(user=self.moderator)
+
+        response = self.client.patch(
+            reverse("user-info", args=[self.user.id]),
+            {"full_name": "Не можна", "status": "Можна"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.user.refresh_from_db()
+        self.assertNotEqual(self.user.full_name, "Не можна")
+        self.assertNotEqual(self.user.status, "Можна")
+
+    def test_moderator_cannot_update_profile_on_other_floor(self):
+        self.client.force_authenticate(user=self.moderator)
+
+        response = self.client.patch(
+            reverse("user-info", args=[self.other_floor_user.id]),
+            {"status": "Чужий поверх"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.other_floor_user.refresh_from_db()
+        self.assertNotEqual(self.other_floor_user.status, "Чужий поверх")
 
     def test_admin_cannot_move_user_to_full_room(self):
         other_user = User.objects.create(

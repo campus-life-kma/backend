@@ -102,6 +102,12 @@ class UserUpdateSerializer(serializers.ModelSerializer):
         fields = ["full_name", "photo", "status", "bio"]
 
 
+class ModeratorUserUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ["status", "bio"]
+
+
 class AdminUserUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User

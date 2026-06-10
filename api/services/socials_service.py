@@ -6,8 +6,8 @@ from django.db.models.fields import CharField
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 
-from api.models import SocialEvent, SocialSharingRequest, SocialSharingStatus, TargetType
-from api.services.announcements_service import AnnouncementsService
+from api.models import Announcement, SocialEvent, SocialSharingRequest, SocialSharingStatus, TargetType
+from api.services.announcement_email_service import AnnouncementEmailService
 
 
 class SocialError(Exception):
@@ -277,10 +277,12 @@ class SocialsService:
         if not self.can_manage_event(user, event):
             raise SocialPermissionDeniedError("Ви не маєте прав для видалення цієї події.")
 
-        users_to_notify = [p for p in event.participants.all() if p.id != user.id]
-
         event_title = event.title
         creator_id = event.creator.id
+        if user.id == creator_id:
+            users_to_notify = [p for p in event.participants.all() if p.id != user.id]
+        else:
+            users_to_notify = list(event.participants.all())
 
         with transaction.atomic():
             event.status = self.get_status("CANCELLED")
@@ -295,8 +297,9 @@ class SocialsService:
                         f"За питаннями звертайтеся за адресою: {user.email}"
                     )
                 else:
+                    actor_label = self.get_actor_label(user)
                     message = (
-                        f"Модератор/Адміністратор {user.full_name} видалив подію '{event_title}'.\n\n"
+                        f"{actor_label} {user.full_name} скасував подію '{event_title}'.\n\n"
                         f"За питаннями звертайтеся за адресою: {user.email}"
                     )
 
@@ -337,10 +340,10 @@ class SocialsService:
             sharing_request.save(update_fields=["status"])
 
             if user.id != sharing_request.creator.id:
+                actor_label = self.get_actor_label(user)
                 subject = f"Скасування запиту: {sharing_request.title}"
                 message = (
-                    f"Модератор/Адміністратор {user.full_name} "
-                    f"скасував ваш запит на шеринг '{sharing_request.title}'.\n\n"
+                    f"{actor_label} {user.full_name} скасував ваш запит на шеринг '{sharing_request.title}'.\n\n"
                     f"За питаннями звертайтеся за адресою: {user.email}"
                 )
                 self._send_system_announcement(user, [sharing_request.creator], subject, message)
@@ -357,13 +360,23 @@ class SocialsService:
             "target_type": target_type,
             "title": title,
             "message": message,
-            "target_users": target_users,
         }
 
         try:
-            AnnouncementsService().create_announcement(actor, announcement_data)
+            announcement = Announcement.objects.create(creator=actor, **announcement_data)
+            announcement.target_users.set(target_users)
+            AnnouncementEmailService().send_announcement(announcement)
         except Exception as exc:
             raise SocialError("Не вдалося надіслати сповіщення користувачам. Видалення скасовано.") from exc
+
+    def get_actor_label(self, user):
+        if user.is_admin:
+            return "Адміністратор"
+
+        if user.is_moderator:
+            return "Модератор поверху"
+
+        return "Користувач"
 
     def get_status(self, status_name):
         try:
@@ -464,12 +477,14 @@ class SocialsService:
 
     def update_event(self, user, event_id, validated_data):
         try:
-            event = SocialEvent.objects.select_related("status").get(id=event_id)
+            event = SocialEvent.objects.select_related("creator", "room", "room__floor", "floor", "status").get(
+                id=event_id
+            )
         except SocialEvent.DoesNotExist as exc:
             raise SocialNotFoundError("Подію з таким id не знайдено.") from exc
 
-        if event.creator.id != user.id:
-            raise SocialPermissionDeniedError("Тільки автор може редагувати цю подію.")
+        if event.creator_id != user.id:
+            raise SocialPermissionDeniedError("Лише автор може редагувати цю подію.")
 
         if event.status.status != "ACTIVE":
             raise SocialEventUnavailableError("Цю подію вже завершено або скасовано.")
@@ -487,12 +502,17 @@ class SocialsService:
 
     def update_sharing_request(self, user, request_id, validated_data):
         try:
-            sharing_request = SocialSharingRequest.objects.get(id=request_id)
+            sharing_request = SocialSharingRequest.objects.select_related(
+                "creator", "creator__room", "creator__room__floor", "status"
+            ).get(id=request_id)
         except SocialSharingRequest.DoesNotExist as exc:
             raise SocialNotFoundError("Запит на шеринг з таким id не знайдено.") from exc
 
-        if sharing_request.creator.id != user.id:
-            raise SocialPermissionDeniedError("Тільки автор може редагувати цей запит.")
+        if sharing_request.creator_id != user.id:
+            raise SocialPermissionDeniedError("Лише автор може редагувати цей запит.")
+
+        if sharing_request.status.status != "ACTIVE":
+            raise SocialEventUnavailableError("Цей запит вже завершено або скасовано.")
 
         for attr, value in validated_data.items():
             setattr(sharing_request, attr, value)

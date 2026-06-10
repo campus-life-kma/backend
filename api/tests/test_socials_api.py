@@ -1,6 +1,7 @@
 from datetime import timedelta
-from unittest.mock import patch
 
+from django.core import mail
+from django.test import override_settings
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
@@ -17,10 +18,12 @@ from api.models import (
     SocialEvent,
     SocialSharingRequest,
     SocialSharingStatus,
+    TargetType,
     User,
 )
 
 
+@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
 class SocialsApiTests(APITestCase):
     def setUp(self):
         self.resident_role, _ = Role.objects.get_or_create(name="RESIDENT")
@@ -30,6 +33,7 @@ class SocialsApiTests(APITestCase):
         self.active_status, _ = SocialSharingStatus.objects.get_or_create(status="ACTIVE")
         self.completed_status, _ = SocialSharingStatus.objects.get_or_create(status="COMPLETED")
         self.cancelled_status, _ = SocialSharingStatus.objects.get_or_create(status="CANCELLED")
+        self.specific_users_target, _ = TargetType.objects.get_or_create(type="SPECIFIC_USERS")
 
         self.faculty = Faculty.objects.create(name="Тестовий факультет соціалки")
         self.other_faculty = Faculty.objects.create(name="Інший тестовий факультет соціалки")
@@ -84,6 +88,14 @@ class SocialsApiTests(APITestCase):
             email="social-moderator@ukma.edu.ua",
             full_name="Модератор Поверху",
             role=self.moderator_role,
+            room=self.home_room,
+            major=self.major,
+            is_activated=True,
+        )
+        self.admin = User.objects.create(
+            email="social-admin@ukma.edu.ua",
+            full_name="Адміністратор Соціалки",
+            role=self.admin_role,
             room=self.home_room,
             major=self.major,
             is_activated=True,
@@ -241,8 +253,7 @@ class SocialsApiTests(APITestCase):
         sharing_request.refresh_from_db()
         self.assertEqual(sharing_request.status.status, "ACTIVE")
 
-    @patch("api.services.announcements_service.AnnouncementsService.create_announcement")
-    def test_moderator_can_delete_sharing_request_on_own_floor(self, mock_create_announcement):
+    def test_moderator_can_delete_sharing_request_on_own_floor(self):
         sharing_request = SocialSharingRequest.objects.create(
             creator=self.user,
             title="Потрібен подовжувач",
@@ -255,7 +266,35 @@ class SocialsApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         sharing_request.refresh_from_db()
         self.assertEqual(sharing_request.status.status, "CANCELLED")
-        mock_create_announcement.assert_called_once()
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("Модератор поверху", mail.outbox[0].body)
+        self.assertEqual(mail.outbox[0].to, [self.user.email])
+
+    def test_moderator_can_delete_event_on_own_floor_and_notify_all_participants(self):
+        event = self.create_event(creator=self.user)
+        event.participants.add(self.user, self.other_user)
+        self.client.force_authenticate(user=self.moderator)
+
+        response = self.client.delete(reverse("event-detail", kwargs={"event_id": event.id}))
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        event.refresh_from_db()
+        self.assertEqual(event.status.status, "CANCELLED")
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(set(mail.outbox[0].to), {self.user.email, self.other_user.email})
+        self.assertIn("Модератор поверху", mail.outbox[0].body)
+
+    def test_admin_can_delete_event_and_notify_participants(self):
+        event = self.create_event(creator=self.user)
+        event.participants.add(self.user)
+        self.client.force_authenticate(user=self.admin)
+
+        response = self.client.delete(reverse("event-detail", kwargs={"event_id": event.id}))
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, [self.user.email])
+        self.assertIn("Адміністратор", mail.outbox[0].body)
 
     def test_user_cannot_delete_other_users_event(self):
         event = self.create_event(creator=self.other_user)
@@ -288,6 +327,48 @@ class SocialsApiTests(APITestCase):
         event.refresh_from_db()
         self.assertNotEqual(event.title, "Хакерська зміна")
 
+    def test_moderator_cannot_update_event_on_own_floor(self):
+        event = self.create_event(creator=self.user)
+        self.client.force_authenticate(user=self.moderator)
+
+        response = self.client.patch(
+            reverse("event-detail", kwargs={"event_id": event.id}),
+            {"title": "Оновлено модератором"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        event.refresh_from_db()
+        self.assertNotEqual(event.title, "Оновлено модератором")
+
+    def test_admin_cannot_update_event(self):
+        event = self.create_event(creator=self.user)
+        self.client.force_authenticate(user=self.admin)
+
+        response = self.client.patch(
+            reverse("event-detail", kwargs={"event_id": event.id}),
+            {"title": "Оновлено адміном"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        event.refresh_from_db()
+        self.assertNotEqual(event.title, "Оновлено адміном")
+
+    def test_moderator_cannot_update_event_on_other_floor(self):
+        event = self.create_event(creator=self.other_user, floor=self.other_floor, room=None)
+        self.client.force_authenticate(user=self.moderator)
+
+        response = self.client.patch(
+            reverse("event-detail", kwargs={"event_id": event.id}),
+            {"title": "Чужий поверх"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        event.refresh_from_db()
+        self.assertNotEqual(event.title, "Чужий поверх")
+
     def test_owner_can_update_sharing_request(self):
         request = SocialSharingRequest.objects.create(creator=self.user, title="Стара назва", status=self.active_status)
 
@@ -311,3 +392,49 @@ class SocialsApiTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        request.refresh_from_db()
+        self.assertNotEqual(request.title, "Зламана назва")
+
+    def test_moderator_cannot_update_sharing_request_on_own_floor(self):
+        request = SocialSharingRequest.objects.create(creator=self.user, title="Стара назва", status=self.active_status)
+        self.client.force_authenticate(user=self.moderator)
+
+        response = self.client.patch(
+            reverse("sharing-request-detail", kwargs={"request_id": request.id}),
+            {"title": "Оновлено модератором"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        request.refresh_from_db()
+        self.assertNotEqual(request.title, "Оновлено модератором")
+
+    def test_admin_cannot_update_sharing_request(self):
+        request = SocialSharingRequest.objects.create(creator=self.user, title="Стара назва", status=self.active_status)
+        self.client.force_authenticate(user=self.admin)
+
+        response = self.client.patch(
+            reverse("sharing-request-detail", kwargs={"request_id": request.id}),
+            {"title": "Оновлено адміном"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        request.refresh_from_db()
+        self.assertNotEqual(request.title, "Оновлено адміном")
+
+    def test_moderator_cannot_update_sharing_request_on_other_floor(self):
+        request = SocialSharingRequest.objects.create(
+            creator=self.other_user, title="Стара назва", status=self.active_status
+        )
+        self.client.force_authenticate(user=self.moderator)
+
+        response = self.client.patch(
+            reverse("sharing-request-detail", kwargs={"request_id": request.id}),
+            {"title": "Чужий поверх"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        request.refresh_from_db()
+        self.assertNotEqual(request.title, "Чужий поверх")

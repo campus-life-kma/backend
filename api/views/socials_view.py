@@ -600,7 +600,7 @@ class SocialEventDetailView(APIView):
         tags=["Соціальна стрічка"],
         summary="Редагування події",
         description=(
-            "Дозволяє автору частково або повністю оновити інформацію про подію. "
+            "Дозволяє лише автору частково або повністю оновити інформацію про активну подію. "
             "Можна передавати лише ті поля, які змінилися."
         ),
         request=SocialEventUpdateSerializer,
@@ -677,7 +677,7 @@ class SocialEventDetailView(APIView):
                 examples=[
                     OpenApiExample(
                         "Недостатньо прав",
-                        value={"detail": "Тільки автор може редагувати цю подію."},
+                        value={"detail": "Лише автор може редагувати цю подію."},
                         response_only=True,
                     )
                 ],
@@ -1031,7 +1031,7 @@ class SocialSharingRequestDetailView(APIView):
     @extend_schema(
         tags=["Соціальна стрічка"],
         summary="Редагування запиту на шеринг",
-        description="Дозволяє автору змінити заголовок/опис свого активного запиту на шеринг.",
+        description="Дозволяє лише автору змінити свій активний запит на шеринг.",
         request=SocialSharingRequestUpdateSerializer,
         parameters=[
             OpenApiParameter(
@@ -1091,7 +1091,7 @@ class SocialSharingRequestDetailView(APIView):
                 examples=[
                     OpenApiExample(
                         "Недостатньо прав",
-                        value={"detail": "Тільки автор може редагувати цей запит."},
+                        value={"detail": "Лише автор може редагувати цей запит."},
                         response_only=True,
                     )
                 ],

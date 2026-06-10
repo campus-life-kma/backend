@@ -4,7 +4,11 @@ from django.db import transaction
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 
 from api.models import Room, User
-from api.serializers.user_serializer import AdminUserUpdateSerializer, UserUpdateSerializer
+from api.serializers.user_serializer import (
+    AdminUserUpdateSerializer,
+    ModeratorUserUpdateSerializer,
+    UserUpdateSerializer,
+)
 
 
 class UserService:
@@ -19,11 +23,16 @@ class UserService:
     def update_profile(self, acting_user: User, target_user_id: str, update_data: dict) -> User:
         target_user = self.get_user_by_id(target_user_id)
 
-        if not acting_user.is_admin and acting_user.id != target_user.id:
+        can_moderator_edit = self.can_moderator_edit_profile(acting_user, target_user)
+
+        if not acting_user.is_admin and acting_user.id != target_user.id and not can_moderator_edit:
             raise PermissionDenied(detail="Ви не маєте прав для редагування цього профілю.")
 
         if acting_user.is_admin:
             serializer_class = AdminUserUpdateSerializer
+        elif can_moderator_edit:
+            self.validate_moderator_profile_update(update_data)
+            serializer_class = ModeratorUserUpdateSerializer
         else:
             serializer_class = UserUpdateSerializer
 
@@ -37,10 +46,31 @@ class UserService:
                 self.validate_admin_room_change(target_user, serializer.validated_data)
                 changes = self.build_profile_changes(target_user, serializer.validated_data)
                 updated_user = serializer.save()
-                self.notify_profile_updated(updated_user, changes)
+                self.notify_profile_updated(updated_user, changes, "Адміністратор")
+                return updated_user
+
+            if can_moderator_edit:
+                changes = self.build_profile_changes(target_user, serializer.validated_data)
+                updated_user = serializer.save()
+                self.notify_profile_updated(updated_user, changes, "Модератор поверху")
                 return updated_user
 
             return serializer.save()
+
+    def can_moderator_edit_profile(self, acting_user: User, target_user: User) -> bool:
+        return bool(
+            acting_user.is_moderator
+            and acting_user.id != target_user.id
+            and acting_user.room_id
+            and target_user.room_id
+            and acting_user.room.floor_id == target_user.room.floor_id
+        )
+
+    def validate_moderator_profile_update(self, update_data: dict):
+        allowed_fields = {"status", "bio"}
+        forbidden_fields = set(update_data.keys()) - allowed_fields
+        if forbidden_fields:
+            raise PermissionDenied(detail="Модератор може редагувати лише статус і біо мешканців свого поверху.")
 
     def validate_admin_room_change(self, target_user: User, validated_data: dict):
         if "room" not in validated_data:
@@ -132,7 +162,7 @@ class UserService:
         }
         return labels.get(value, value)
 
-    def notify_profile_updated(self, user: User, changes: list[dict]):
+    def notify_profile_updated(self, user: User, changes: list[dict], actor_label: str):
         if not changes or not user.is_activated or not user.email:
             return
 
@@ -141,7 +171,7 @@ class UserService:
         )
         body = (
             "Вітаємо!\n\n"
-            "Адміністратор Campus Life оновив дані вашого профілю:\n\n"
+            f"{actor_label} Campus Life оновив дані вашого профілю:\n\n"
             f"{changes_text}\n\n"
             "Якщо ви вважаєте, що сталася помилка, зверніться до адміністрації гуртожитку."
         )
