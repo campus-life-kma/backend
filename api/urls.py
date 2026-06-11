@@ -6,7 +6,7 @@ from api.views.announcements_view import (
     AnnouncementCreateView,
     AnnouncementReadView,
 )
-from api.views.auth_view import DevLoginView, LoginView, CustomTokenRefreshView
+from api.views.auth_view import AuthMeView, DevLoginView, LoginView, CustomTokenRefreshView
 from api.views.bookings_view import (
     BookingCancelView,
     BookingCreateView,
@@ -44,6 +44,7 @@ from api.views.user_view import UserDetailView
 urlpatterns = [
     path("auth/refresh/", CustomTokenRefreshView.as_view(), name="token_refresh"),
     path("auth/login/", LoginView.as_view(), name="login"),
+    path("auth/me/", AuthMeView.as_view(), name="auth-me"),
     path("floors/<int:dormitory_id>/", FloorsView.as_view(), name="floors"),
     path("floors/<int:floor_id>/map-data/", FloorMapDataView.as_view(), name="floor-map-data"),
     path("rooms/<int:room_id>/block/", RoomBlockView.as_view(), name="room-block"),
