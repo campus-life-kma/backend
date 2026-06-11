@@ -2,11 +2,13 @@ from django.conf import settings
 from drf_spectacular.utils import extend_schema, OpenApiResponse, OpenApiExample, extend_schema_view
 
 from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenRefreshView
 
 from api.serializers.auth_serializer import DevLoginSerializer, LoginResponseSerializer, LoginSerializer
+from api.serializers.user_serializer import UserBaseSerializer
 from api.services.auth_service import DevLoginService, LoginService
 
 
@@ -217,3 +219,23 @@ class LoginView(APIView):
 )
 class CustomTokenRefreshView(TokenRefreshView):
     pass
+
+
+class AuthMeView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=["Авторизація"],
+        summary="Профіль поточного користувача",
+        request=None,
+        responses={
+            200: OpenApiResponse(
+                response=UserBaseSerializer,
+                description="Базові дані авторизованого користувача.",
+            ),
+            401: OpenApiResponse(description="Користувач не авторизований."),
+        },
+    )
+    def get(self, request):
+        serializer = UserBaseSerializer(request.user, context={"request": request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
