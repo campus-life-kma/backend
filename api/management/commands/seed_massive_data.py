@@ -21,7 +21,7 @@ from api.models import (
 class Command(BaseCommand):
     help = "Наповнює базу великою кількістю тестових даних для симуляції реального навантаження"
 
-    def handle(self, *args, **kwargs):
+    def handle(self, *args, **kwargs):  # noqa: C901
         self.stdout.write("Починаємо генерацію МАСИВНИХ тестових даних...")
 
         try:
@@ -57,19 +57,47 @@ class Command(BaseCommand):
         User.objects.filter(email__startswith="massive_user_").delete()
 
         self.stdout.write("Створення 200 користувачів...")
-        
-        first_names = ["Олександр", "Максим", "Іван", "Андрій", "Дмитро", "Артем", "Владислав", "Анастасія", "Дарина", "Марія", "Катерина", "Софія", "Вікторія", "Анна", "Поліна"]
-        last_names = ["Бойко", "Коваленко", "Шевченко", "Мельник", "Ткаченко", "Кравченко", "Лисенко", "Петренко", "Олійник", "Савченко", "Григоренко", "Романенко"]
+
+        first_names = [
+            "Олександр",
+            "Максим",
+            "Іван",
+            "Андрій",
+            "Дмитро",
+            "Артем",
+            "Владислав",
+            "Анастасія",
+            "Дарина",
+            "Марія",
+            "Катерина",
+            "Софія",
+            "Вікторія",
+            "Анна",
+            "Поліна",
+        ]
+        last_names = [
+            "Бойко",
+            "Коваленко",
+            "Шевченко",
+            "Мельник",
+            "Ткаченко",
+            "Кравченко",
+            "Лисенко",
+            "Петренко",
+            "Олійник",
+            "Савченко",
+            "Григоренко",
+            "Романенко",
+        ]
 
         users_to_create = []
         for i in range(1, 201):
             pos = random.choices(
-                [User.Position.STUDENT, User.Position.TEACHER, User.Position.EMPLOYEE], 
-                weights=[80, 15, 5]
+                [User.Position.STUDENT, User.Position.TEACHER, User.Position.EMPLOYEE], weights=[80, 15, 5]
             )[0]
-            
+
             full_name = f"{random.choice(first_names)} {random.choice(last_names)}"
-            
+
             user_data = dict(
                 email=f"massive_user_{i}@ukma.edu.ua",
                 password=unusable_password,
@@ -81,14 +109,16 @@ class Command(BaseCommand):
                 bio="Тестовий акаунт для масивних даних.",
                 position=pos,
             )
-            
+
             if pos == User.Position.STUDENT:
-                user_data["education_level"] = random.choices(['BACHELOR', 'MASTER', 'PHD'], weights=[70, 20, 10])[0]
-                user_data["year"] = random.randint(1, 4) if user_data["education_level"] != 'MASTER' else random.randint(1, 2)
+                user_data["education_level"] = random.choices(["BACHELOR", "MASTER", "PHD"], weights=[70, 20, 10])[0]
+                user_data["year"] = (
+                    random.randint(1, 4) if user_data["education_level"] != "MASTER" else random.randint(1, 2)
+                )
                 user_data["major"] = random.choice(majors)
             elif pos == User.Position.TEACHER:
                 user_data["faculty"] = random.choice(majors).faculty
-            
+
             users_to_create.append(User(**user_data))
 
         User.objects.bulk_create(users_to_create)

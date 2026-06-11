@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from api.models import Faculty, Major, Role, TargetType, Dormitory, Floor, Room
+from api.models import Faculty, Major, Role, TargetType, Dormitory, Floor, Room, Resource
 
 
 class FacultyListSerializer(serializers.ModelSerializer):
@@ -58,3 +58,15 @@ class RoomListSerializer(serializers.ModelSerializer):
             "is_blocked",
             "current_residents_count",
         ]
+
+
+class RoomTypeListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Room.room_type.field.related_model
+        fields = ["id", "type"]
+
+
+class ResourceTypeListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Resource.resource_type.field.related_model
+        fields = ["id", "type", "icon_file"]

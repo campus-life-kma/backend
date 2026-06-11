@@ -96,3 +96,23 @@ class FloorMapDataSerializer(serializers.ModelSerializer):
             "creator", "status"
         )
         return SocialEventMapSerializer(events, many=True, context=self.context).data
+
+
+class RoomUpdateSerializer(serializers.ModelSerializer):
+    room_type = serializers.PrimaryKeyRelatedField(
+        queryset=Room.room_type.field.related_model.objects.all(), required=False
+    )
+
+    class Meta:
+        model = Room
+        fields = ["name", "room_type", "max_person", "is_blocked"]
+
+
+class ResourceCreateUpdateSerializer(serializers.ModelSerializer):
+    resource_type = serializers.PrimaryKeyRelatedField(
+        queryset=Resource.resource_type.field.related_model.objects.all(), required=False
+    )
+
+    class Meta:
+        model = Resource
+        fields = ["name", "max_person", "is_blocked", "resource_type"]

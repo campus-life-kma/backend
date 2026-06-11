@@ -26,8 +26,18 @@ from api.views.dictionaries_view import (
     DormitoryListView,
     FloorListView,
     RoomListView,
+    RoomTypeListView,
+    ResourceTypeListView,
 )
-from api.views.locations_view import FloorsView, FloorMapDataView, RoomBlockView, RoomUnblockView
+from api.views.locations_view import (
+    FloorsView,
+    FloorMapDataView,
+    RoomBlockView,
+    RoomUnblockView,
+    RoomUpdateView,
+    ResourceCreateView,
+    ResourceDetailView,
+)
 from api.views.presence_view import PresenceCheckInView, PresenceGoHomeView
 from api.views.socials_view import (
     FeedView,
@@ -84,6 +94,11 @@ urlpatterns = [
     path("dormitories/", DormitoryListView.as_view(), name="dormitory-list"),
     path("floors/", FloorListView.as_view(), name="floor-list"),
     path("rooms/", RoomListView.as_view(), name="room-list"),
+    path("room-types/", RoomTypeListView.as_view(), name="room-type-list"),
+    path("resource-types/", ResourceTypeListView.as_view(), name="resource-type-list"),
+    path("rooms/<int:room_id>/", RoomUpdateView.as_view(), name="room-update"),
+    path("rooms/<int:room_id>/resources/", ResourceCreateView.as_view(), name="resource-create"),
+    path("resources/<int:resource_id>/", ResourceDetailView.as_view(), name="resource-detail"),
 ]
 
 if settings.DEBUG:

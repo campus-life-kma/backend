@@ -58,7 +58,7 @@ class User(AbstractUser):
     email = models.EmailField(unique=True, help_text="Корпоративна електронна пошта (наприклад, @ukma.edu.ua)")
 
     full_name = models.CharField(max_length=500, null=True, blank=True, help_text="Повне ім'я мешканця")
-    
+
     position = models.CharField(
         max_length=20,
         choices=Position.choices,

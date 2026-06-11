@@ -11,6 +11,9 @@ from api.serializers.locations_serializer import (
     FloorListSerializer,
     FloorMapDataSerializer,
     RoomBlockSerializer,
+    RoomUpdateSerializer,
+    ResourceCreateUpdateSerializer,
+    ResourceSerializer,
 )
 from api.services.locations_service import LocationsService
 
@@ -264,3 +267,86 @@ class RoomUnblockView(APIView):
 
         serializer = RoomBlockSerializer(room, context={"request": request})
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class RoomUpdateView(APIView):
+    permission_classes = [AdminPermission]
+
+    @extend_schema(
+        tags=["Локації"],
+        summary="Редагування кімнати (лише адміністратор)",
+        request=RoomUpdateSerializer,
+        responses={200: RoomBlockSerializer},
+    )
+    def patch(self, request, room_id):
+        serializer = RoomUpdateSerializer(data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+
+        service = LocationsService()
+        try:
+            room = service.update_room(request.user, room_id, serializer.validated_data)
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        response_serializer = RoomBlockSerializer(room, context={"request": request})
+        return Response(response_serializer.data, status=status.HTTP_200_OK)
+
+
+class ResourceCreateView(APIView):
+    permission_classes = [AdminPermission]
+
+    @extend_schema(
+        tags=["Локації"],
+        summary="Створення ресурсу в кімнаті (лише адміністратор)",
+        request=ResourceCreateUpdateSerializer,
+        responses={201: ResourceSerializer},
+    )
+    def post(self, request, room_id):
+        serializer = ResourceCreateUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        service = LocationsService()
+        try:
+            resource = service.create_resource(request.user, room_id, serializer.validated_data)
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        response_serializer = ResourceSerializer(resource, context={"request": request})
+        return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+
+
+class ResourceDetailView(APIView):
+    permission_classes = [AdminPermission]
+
+    @extend_schema(
+        tags=["Локації"],
+        summary="Оновлення ресурсу (лише адміністратор)",
+        request=ResourceCreateUpdateSerializer,
+        responses={200: ResourceSerializer},
+    )
+    def patch(self, request, resource_id):
+        serializer = ResourceCreateUpdateSerializer(data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+
+        service = LocationsService()
+        try:
+            resource = service.update_resource(request.user, resource_id, serializer.validated_data)
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_404_NOT_FOUND)
+
+        response_serializer = ResourceSerializer(resource, context={"request": request})
+        return Response(response_serializer.data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        tags=["Локації"],
+        summary="Видалення ресурсу (лише адміністратор)",
+        responses={204: None},
+    )
+    def delete(self, request, resource_id):
+        service = LocationsService()
+        try:
+            service.delete_resource(request.user, resource_id)
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_404_NOT_FOUND)
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
