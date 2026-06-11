@@ -115,3 +115,42 @@ class UserMapSerializer(serializers.ModelSerializer):
         if obj.is_activated and obj.full_name:
             return obj.full_name
         return "Новий мешканець"
+
+
+class AnnouncementRecipientSerializer(serializers.ModelSerializer):
+    display_name = serializers.SerializerMethodField(help_text="Ім'я користувача для списку адресатів")
+    role_name = serializers.CharField(source="role.name", read_only=True, allow_null=True, help_text="Роль користувача")
+    floor_id = serializers.IntegerField(source="room.floor.id", read_only=True, allow_null=True, help_text="ID поверху")
+    floor_number = serializers.IntegerField(
+        source="room.floor.number", read_only=True, allow_null=True, help_text="Номер поверху"
+    )
+    room_id = serializers.IntegerField(source="room.id", read_only=True, allow_null=True, help_text="ID кімнати")
+    room_name = serializers.CharField(source="room.name", read_only=True, allow_null=True, help_text="Назва кімнати")
+    faculty_name = serializers.CharField(
+        source="major.faculty.name", read_only=True, allow_null=True, help_text="Назва факультету"
+    )
+    major_name = serializers.CharField(
+        source="major.name", read_only=True, allow_null=True, help_text="Назва спеціальності"
+    )
+
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "display_name",
+            "email",
+            "role_name",
+            "floor_id",
+            "floor_number",
+            "room_id",
+            "room_name",
+            "faculty_name",
+            "major_name",
+            "year",
+        ]
+
+    @extend_schema_field(serializers.CharField)
+    def get_display_name(self, obj):
+        if obj.full_name:
+            return obj.full_name
+        return obj.email

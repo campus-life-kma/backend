@@ -2,7 +2,7 @@ from django.db import transaction
 from django.db.models import QuerySet
 from django.utils import timezone
 
-from api.models import Floor, Room, TargetType, User
+from api.models import Floor, Room, SocialSharingStatus, TargetType, User
 from api.models.locations import Dormitory
 from api.services.announcements_service import AnnouncementError, AnnouncementsService
 from api.services.bookings_service import BookingError, BookingsService
@@ -37,7 +37,12 @@ class LocationsService:
                 except BookingError as exc:
                     raise ValueError(str(exc)) from exc
 
-            events = room.events.filter(end_time__gte=now).select_related("creator").prefetch_related("participants")
+            cancelled_event_status, _ = SocialSharingStatus.objects.get_or_create(status="CANCELLED")
+            events = (
+                room.events.filter(status__status="ACTIVE", end_time__gte=now)
+                .select_related("creator")
+                .prefetch_related("participants")
+            )
             for event in events:
                 recipients = {participant.id: participant for participant in event.participants.all()}
                 recipients[event.creator.id] = event.creator
@@ -52,7 +57,8 @@ class LocationsService:
                     )
                     self._send_system_announcement(user, list(recipients.values()), title, message)
 
-                event.delete()
+                event.status = cancelled_event_status
+                event.save(update_fields=["status"])
 
             residents = list(User.objects.filter(room=room).exclude(id=user.id))
             if residents:

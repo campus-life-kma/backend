@@ -146,7 +146,7 @@ class SocialsService:
         return start_dt, end_dt
 
     def get_visible_events_queryset(self, user, now):
-        base_qs = SocialEvent.objects.filter(end_time__gte=now)
+        base_qs = SocialEvent.objects.filter(status__status="ACTIVE", end_time__gte=now)
 
         if user.is_admin:
             return base_qs
@@ -168,6 +168,7 @@ class SocialsService:
                 "room",
                 "room__floor",
                 "floor",
+                "status",
             )
             .prefetch_related("participants")
             .annotate(participants_count=Count("participants"))
@@ -193,7 +194,8 @@ class SocialsService:
         return items
 
     def create_event(self, user, validated_data):
-        event = SocialEvent.objects.create(creator=user, **validated_data)
+        status = self.get_status("ACTIVE")
+        event = SocialEvent.objects.create(creator=user, status=status, **validated_data)
         event.participants.add(user)
         return event
 
@@ -207,6 +209,7 @@ class SocialsService:
                     "room",
                     "room__floor",
                     "floor",
+                    "status",
                 )
                 .prefetch_related("participants")
                 .get(id=event_id)
@@ -232,11 +235,11 @@ class SocialsService:
 
         with transaction.atomic():
             try:
-                event = SocialEvent.objects.select_for_update().get(id=event_id)
+                event = SocialEvent.objects.select_related("status").select_for_update().get(id=event_id)
             except SocialEvent.DoesNotExist as exc:
                 raise SocialNotFoundError("Подію з таким id не знайдено.") from exc
 
-            if event.end_time < now:
+            if event.status.status != "ACTIVE" or event.end_time < now:
                 raise SocialEventUnavailableError()
 
             if not self.can_view_event(user, event):
@@ -264,7 +267,7 @@ class SocialsService:
     def delete_event(self, user, event_id):
         try:
             event = (
-                SocialEvent.objects.select_related("creator", "room", "room__floor", "floor")
+                SocialEvent.objects.select_related("creator", "room", "room__floor", "floor", "status")
                 .prefetch_related("participants")
                 .get(id=event_id)
             )
@@ -280,7 +283,8 @@ class SocialsService:
         creator_id = event.creator.id
 
         with transaction.atomic():
-            event.delete()
+            event.status = self.get_status("CANCELLED")
+            event.save(update_fields=["status"])
 
             if users_to_notify:
                 subject = f"Скасування події: {event_title}"
@@ -310,8 +314,8 @@ class SocialsService:
         except SocialSharingRequest.DoesNotExist as exc:
             raise SocialNotFoundError("Запит на шеринг з таким id не знайдено.") from exc
 
-        if not self.can_manage_sharing_request(user, sharing_request):
-            raise SocialPermissionDeniedError("Ви не маєте прав для завершення цього запиту.")
+        if sharing_request.creator_id != user.id:
+            raise SocialPermissionDeniedError("Тільки автор запиту може позначити його як виконаний.")
 
         sharing_request.status = self.get_status("COMPLETED")
         sharing_request.save(update_fields=["status"])
@@ -433,7 +437,7 @@ class SocialsService:
         )
 
         base_events_qs = SocialEvent.objects.select_related(
-            "creator", "creator__major", "creator__major__faculty", "room", "room__floor", "floor"
+            "creator", "creator__major", "creator__major__faculty", "room", "room__floor", "floor", "status"
         )
 
         if request_user.is_admin:
@@ -447,7 +451,7 @@ class SocialsService:
         created_events = visible_events.filter(creator=target_user).order_by("-start_time")
 
         participating_events = (
-            visible_events.filter(participants=target_user, end_time__gt=now)
+            visible_events.filter(participants=target_user, status__status="ACTIVE", end_time__gt=now)
             .exclude(creator=target_user)
             .order_by("start_time")
         )
@@ -460,17 +464,25 @@ class SocialsService:
 
     def update_event(self, user, event_id, validated_data):
         try:
-            event = SocialEvent.objects.get(id=event_id)
+            event = SocialEvent.objects.select_related("status").get(id=event_id)
         except SocialEvent.DoesNotExist as exc:
             raise SocialNotFoundError("Подію з таким id не знайдено.") from exc
 
         if event.creator.id != user.id:
             raise SocialPermissionDeniedError("Тільки автор може редагувати цю подію.")
 
+        if event.status.status != "ACTIVE":
+            raise SocialEventUnavailableError("Цю подію вже завершено або скасовано.")
+
         for attr, value in validated_data.items():
             setattr(event, attr, value)
 
-        event.save()
+        update_fields = list(validated_data.keys())
+        if event.end_time <= timezone.now():
+            event.status = self.get_status("COMPLETED")
+            update_fields.append("status")
+
+        event.save(update_fields=update_fields or None)
         return event
 
     def update_sharing_request(self, user, request_id, validated_data):

@@ -65,6 +65,14 @@ class Booking(models.Model):
     status = models.ForeignKey(
         BookingStatus, on_delete=models.PROTECT, related_name="bookings", help_text="Поточний стан цього бронювання"
     )
+    cancelled_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="cancelled_bookings",
+        help_text="Користувач, який скасував бронювання",
+    )
 
     def __str__(self):
         return f"Бронювання: {self.resource.name} {self.user.email} ({self.start_time.strftime('%H:%M')})"

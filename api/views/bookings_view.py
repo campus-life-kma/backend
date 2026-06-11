@@ -76,12 +76,22 @@ class ResourceScheduleView(APIView):
                                 "start_time": "2026-05-23T18:00:00Z",
                                 "end_time": "2026-05-23T19:00:00Z",
                                 "status": "ACTIVE",
+                                "user": {
+                                    "id": "0c3a2cb7-7ef5-4c0f-9d36-1b7f0eb05c74",
+                                    "display_name": "Богдан Змеул",
+                                    "photo": "/media/avatars/bogdan.jpg",
+                                },
                             },
                             {
                                 "booking_id": 18,
                                 "start_time": "2026-05-24T09:00:00Z",
                                 "end_time": "2026-05-24T10:00:00Z",
                                 "status": "ACTIVE",
+                                "user": {
+                                    "id": "8a9f6dc2-3d4b-4b4b-9c5e-95a5ecbbd111",
+                                    "display_name": "Олена Коваль",
+                                    "photo": None,
+                                },
                             },
                         ],
                         response_only=True,
@@ -113,7 +123,7 @@ class ResourceScheduleView(APIView):
         except BookingError as exc:
             return Response({"detail": str(exc)}, status=get_booking_error_status(exc))
 
-        serializer = ResourceScheduleSerializer(bookings, many=True)
+        serializer = ResourceScheduleSerializer(bookings, many=True, context={"request": request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
@@ -149,6 +159,7 @@ class BookingCreateView(APIView):
                                 "display_name": "Богдан Змеул",
                                 "photo": "/media/avatars/bogdan.jpg",
                             },
+                            "cancelled_by": None,
                             "resource_id": 1,
                             "resource_name": "Пральна машина 1",
                             "room_id": 5,
@@ -243,6 +254,7 @@ class MyBookingsView(APIView):
                                     "display_name": "Богдан Змеул",
                                     "photo": "/media/avatars/bogdan.jpg",
                                 },
+                                "cancelled_by": None,
                                 "resource_id": 1,
                                 "resource_name": "Пральна машина 1",
                                 "room_id": 5,
@@ -258,6 +270,11 @@ class MyBookingsView(APIView):
                                     "id": "0c3a2cb7-7ef5-4c0f-9d36-1b7f0eb05c74",
                                     "display_name": "Богдан Змеул",
                                     "photo": "/media/avatars/bogdan.jpg",
+                                },
+                                "cancelled_by": {
+                                    "id": "8a9f6dc2-3d4b-4b4b-9c5e-95a5ecbbd111",
+                                    "display_name": "Олена Коваль",
+                                    "photo": None,
                                 },
                                 "resource_id": 1,
                                 "resource_name": "Пральна машина 1",
@@ -309,6 +326,11 @@ class BookingCancelView(APIView):
                         value={
                             "id": 17,
                             "user": {
+                                "id": "0c3a2cb7-7ef5-4c0f-9d36-1b7f0eb05c74",
+                                "display_name": "Богдан Змеул",
+                                "photo": "/media/avatars/bogdan.jpg",
+                            },
+                            "cancelled_by": {
                                 "id": "0c3a2cb7-7ef5-4c0f-9d36-1b7f0eb05c74",
                                 "display_name": "Богдан Змеул",
                                 "photo": "/media/avatars/bogdan.jpg",
@@ -561,6 +583,7 @@ class BookingUpdateView(APIView):
                                 "display_name": "Богдан Змеул",
                                 "photo": "/media/avatars/bogdan.jpg",
                             },
+                            "cancelled_by": None,
                             "resource_id": 1,
                             "resource_name": "Пральна машина 1",
                             "room_id": 5,
@@ -678,6 +701,7 @@ class BookingDetailView(APIView):
                                 "display_name": "Богдан Змеул",
                                 "photo": "/media/avatars/bogdan.jpg",
                             },
+                            "cancelled_by": None,
                             "resource_id": 1,
                             "resource_name": "Пральна машина 1",
                             "room_id": 5,

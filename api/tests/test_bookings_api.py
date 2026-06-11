@@ -112,7 +112,9 @@ class BookingsApiTests(APITestCase):
         end_time = start_time + timedelta(hours=duration_hours)
         return start_time, end_time
 
-    def create_booking(self, user=None, resource=None, start_time=None, end_time=None, status_obj=None):
+    def create_booking(
+        self, user=None, resource=None, start_time=None, end_time=None, status_obj=None, cancelled_by=None
+    ):
         if not start_time or not end_time:
             start_time, end_time = self.future_range()
 
@@ -122,6 +124,7 @@ class BookingsApiTests(APITestCase):
             start_time=start_time,
             end_time=end_time,
             status=status_obj or self.active_status,
+            cancelled_by=cancelled_by,
         )
 
     def test_create_booking_success(self):
@@ -249,6 +252,8 @@ class BookingsApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["booking_id"], active_booking.id)
+        self.assertEqual(response.data[0]["user"]["id"], str(self.user.id))
+        self.assertEqual(response.data[0]["user"]["display_name"], self.user.full_name)
 
     def test_my_bookings_returns_my_current_active_and_cancelled_bookings(self):
         active_booking = self.create_booking()
@@ -256,6 +261,12 @@ class BookingsApiTests(APITestCase):
             status_obj=self.cancelled_status,
             start_time=timezone.now() + timedelta(days=1),
             end_time=timezone.now() + timedelta(days=1, hours=1),
+        )
+        self_cancelled_booking = self.create_booking(
+            status_obj=self.cancelled_status,
+            cancelled_by=self.user,
+            start_time=timezone.now() + timedelta(days=2),
+            end_time=timezone.now() + timedelta(days=2, hours=1),
         )
         self.create_booking(user=self.other_user)
         self.create_booking(status_obj=self.completed_status)
@@ -272,6 +283,7 @@ class BookingsApiTests(APITestCase):
         self.assertEqual(len(response.data), 2)
         self.assertIn(active_booking.id, booking_ids)
         self.assertIn(cancelled_booking.id, booking_ids)
+        self.assertNotIn(self_cancelled_booking.id, booking_ids)
 
     def test_resident_can_cancel_own_booking(self):
         booking = self.create_booking()
@@ -281,6 +293,8 @@ class BookingsApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         booking.refresh_from_db()
         self.assertEqual(booking.status.status, "CANCELLED")
+        self.assertEqual(booking.cancelled_by, self.user)
+        self.assertEqual(response.data["cancelled_by"]["id"], str(self.user.id))
 
     def test_resident_cannot_cancel_other_users_booking(self):
         booking = self.create_booking(user=self.other_user)
@@ -299,6 +313,7 @@ class BookingsApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         booking.refresh_from_db()
         self.assertEqual(booking.status.status, "CANCELLED")
+        self.assertEqual(booking.cancelled_by, self.moderator)
         mock_create_announcement.assert_called_once()
 
     def test_moderator_cannot_cancel_booking_on_other_floor(self):
@@ -320,6 +335,7 @@ class BookingsApiTests(APITestCase):
         booking.refresh_from_db()
         self.assertTrue(self.resource.is_blocked)
         self.assertEqual(booking.status.status, "CANCELLED")
+        self.assertEqual(booking.cancelled_by, self.admin)
         self.assertEqual(response.data["cancelled_bookings_count"], 1)
 
     def test_non_admin_cannot_block_resource(self):
