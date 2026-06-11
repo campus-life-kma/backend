@@ -84,6 +84,47 @@ class PresenceApiTests(APITestCase):
         self.assertEqual(presence.room, self.second_common_room)
         self.assertGreater(presence.joined_at, old_joined_at)
 
+    def test_presence_me_returns_current_presence(self):
+        now = timezone.now()
+        Presence.objects.create(
+            user=self.user,
+            room=self.common_room,
+            joined_at=now,
+            expires_at=now + timedelta(hours=2),
+        )
+
+        response = self.client.get(reverse("presence-me"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["room_id"], self.common_room.id)
+
+    def test_presence_me_returns_null_when_home(self):
+        response = self.client.get(reverse("presence-me"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNone(response.data)
+
+    def test_presence_me_ignores_expired_presence(self):
+        now = timezone.now()
+        Presence.objects.create(
+            user=self.user,
+            room=self.common_room,
+            joined_at=now - timedelta(hours=3),
+            expires_at=now - timedelta(hours=1),
+        )
+
+        response = self.client.get(reverse("presence-me"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNone(response.data)
+
+    def test_presence_me_requires_authentication(self):
+        self.client.force_authenticate(user=None)
+
+        response = self.client.get(reverse("presence-me"))
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
     def test_go_home_deletes_presence(self):
         now = timezone.now()
         Presence.objects.create(
@@ -123,5 +164,35 @@ class PresenceApiTests(APITestCase):
         self.client.force_authenticate(user=None)
 
         response = self.client.post(reverse("presence-check-in"), {"room_id": self.common_room.id}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class AuthMeApiTests(APITestCase):
+    def setUp(self):
+        from api.models import Role
+
+        self.dormitory = Dormitory.objects.create(name="Auth dormitory")
+        self.floor = Floor.objects.create(dormitory=self.dormitory, number=1, map_file="maps/auth.svg")
+        self.living_type, _ = RoomType.objects.get_or_create(type="LIVING")
+        self.room = Room.objects.create(
+            floor=self.floor, room_type=self.living_type, name="101", max_person=4, svg_element_id="auth-101"
+        )
+        self.role, _ = Role.objects.get_or_create(name="RESIDENT")
+        self.user = User.objects.create(
+            email="me@ukma.edu.ua", full_name="Me", role=self.role, room=self.room, is_activated=True
+        )
+
+    def test_auth_me_returns_room_id(self):
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.get(reverse("auth-me"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["room_id"], str(self.room.id))
+        self.assertEqual(response.data["email"], "me@ukma.edu.ua")
+
+    def test_auth_me_requires_authentication(self):
+        response = self.client.get(reverse("auth-me"))
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)

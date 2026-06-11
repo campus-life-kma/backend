@@ -101,3 +101,28 @@ class PresenceGoHomeView(APIView):
         service = PresenceService()
         service.go_home(request.user)
         return Response({"detail": "Присутність очищено."}, status=status.HTTP_200_OK)
+
+
+class PresenceMeView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=["Присутність"],
+        summary="Поточна присутність користувача",
+        request=None,
+        responses={
+            200: OpenApiResponse(
+                response=PresenceResponseSerializer,
+                description="Поточна присутність користувача або null, якщо він удома.",
+            ),
+            401: OpenApiResponse(description="Користувач не авторизований."),
+        },
+    )
+    def get(self, request):
+        service = PresenceService()
+        presence = service.get_current(request.user)
+        if presence is None:
+            return Response(None, status=status.HTTP_200_OK)
+
+        serializer = PresenceResponseSerializer(presence, context={"request": request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
