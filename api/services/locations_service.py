@@ -1,3 +1,5 @@
+import xml.etree.ElementTree as ET
+
 from django.db import transaction
 from django.db.models import QuerySet
 from django.utils import timezone
@@ -137,6 +139,42 @@ class LocationsService:
         room.refresh_from_db()
         return room
 
+    def delete_room(self, user, room_id):
+        room = self._get_room(room_id)
+
+        if not room.is_blocked:
+            raise ValueError("Спочатку заблокуйте кімнату, а потім вилучайте її з гуртожитку.")
+        if room.user_set.exists():
+            raise ValueError("Не можна вилучити кімнату, доки до неї прикріплені мешканці.")
+        if room.presences.filter(expires_at__gt=timezone.now()).exists():
+            raise ValueError("Не можна вилучити кімнату, доки в ній є активна присутність користувачів.")
+        if room.resources.filter(bookings__status__status="ACTIVE").exists():
+            raise ValueError("Не можна вилучити кімнату, доки її ресурси мають активні бронювання.")
+        if room.events.filter(status__status="ACTIVE").exists():
+            raise ValueError("Не можна вилучити кімнату, доки в ній є активні події.")
+
+        room.delete()
+
+    def create_room(self, user, floor_id, data) -> Room:
+        try:
+            floor = Floor.objects.select_related("dormitory").get(id=floor_id)
+        except Floor.DoesNotExist:
+            raise ValueError("Поверх з таким id не знайдено!")
+
+        svg_element_id = data.get("svg_element_id")
+        if Room.objects.filter(floor=floor, svg_element_id=svg_element_id).exists():
+            raise ValueError("Ця зона мапи вже прив'язана до кімнати.")
+
+        if not self._floor_has_svg_room_id(floor, svg_element_id):
+            raise ValueError("У SVG-мапі цього поверху немає такої кімнати.")
+
+        name = data.get("name")
+        if Room.objects.filter(floor__dormitory=floor.dormitory, name=name).exists():
+            raise ValueError("Кімната з такою назвою вже існує в цьому гуртожитку.")
+
+        data["floor"] = floor
+        return Room.objects.create(**data)
+
     def create_resource(self, user, room_id, data) -> Resource:
         room = self._get_room(room_id)
         if room.room_type.type not in ["KITCHEN", "LAUNDRY"]:
@@ -176,6 +214,30 @@ class LocationsService:
             return Room.objects.get(id=room_id)
         except Room.DoesNotExist:
             raise ValueError("Кімнату з таким id не знайдено!")
+
+    def _floor_has_svg_room_id(self, floor: Floor, svg_element_id: str) -> bool:
+        if not floor.map_file:
+            raise ValueError("Для цього поверху не завантажено SVG-мапу.")
+
+        try:
+            with floor.map_file.open("rb") as file:
+                root = ET.parse(file).getroot()
+        except (OSError, ET.ParseError, ValueError) as exc:
+            raise ValueError("Не вдалося перевірити SVG-мапу поверху.") from exc
+
+        rooms_group = None
+        for element in root.iter():
+            if element.attrib.get("id") == "rooms":
+                rooms_group = element
+                break
+
+        if rooms_group is None:
+            raise ValueError("У SVG-мапі не знайдено групу кімнат.")
+
+        for element in rooms_group.iter():
+            if element.attrib.get("id") == svg_element_id:
+                return True
+        return False
 
     def _send_system_announcement(self, actor, target_users, title, message):
         try:

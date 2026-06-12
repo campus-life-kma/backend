@@ -108,6 +108,53 @@ class RoomUpdateSerializer(serializers.ModelSerializer):
         fields = ["name", "room_type", "max_person", "is_blocked"]
 
 
+class RoomCreateSerializer(serializers.ModelSerializer):
+    room_type = serializers.PrimaryKeyRelatedField(
+        queryset=Room.room_type.field.related_model.objects.all(),
+        help_text="ID типу кімнати",
+        error_messages={
+            "does_not_exist": "Тип кімнати не знайдено.",
+            "incorrect_type": "Некоректний тип значення для типу кімнати.",
+            "required": "Оберіть тип кімнати.",
+        },
+    )
+    name = serializers.CharField(
+        max_length=100,
+        help_text="Назва або номер кімнати",
+        error_messages={
+            "blank": "Вкажіть назву кімнати.",
+            "max_length": "Назва кімнати занадто довга.",
+            "required": "Вкажіть назву кімнати.",
+        },
+    )
+    svg_element_id = serializers.CharField(
+        max_length=100,
+        help_text="ID неактивної кімнати з SVG-мапи поверху",
+        error_messages={
+            "blank": "Вкажіть ID кімнати на SVG-мапі.",
+            "max_length": "ID кімнати на SVG-мапі занадто довгий.",
+            "required": "Вкажіть ID кімнати на SVG-мапі.",
+        },
+    )
+
+    class Meta:
+        model = Room
+        fields = ["name", "room_type", "max_person", "is_blocked", "svg_element_id"]
+        extra_kwargs = {
+            "max_person": {
+                "help_text": "Максимальна місткість кімнати",
+                "error_messages": {
+                    "invalid": "Місткість має бути числом.",
+                    "min_value": "Місткість не може бути меншою за 0.",
+                    "required": "Вкажіть місткість кімнати.",
+                },
+            },
+            "is_blocked": {
+                "help_text": "Чи має кімната бути одразу заблокованою",
+            },
+        }
+
+
 class ResourceCreateUpdateSerializer(serializers.ModelSerializer):
     resource_type = serializers.PrimaryKeyRelatedField(
         queryset=Resource.resource_type.field.related_model.objects.all(), required=False
