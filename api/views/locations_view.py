@@ -96,6 +96,7 @@ class FloorMapDataView(APIView):
                             "number": 1,
                             "map_file": "/media/maps/floor_1.svg",
                             "dormitory_name": "Гуртожиток №1",
+                            "notice": "",
                             "rooms": [
                                 {
                                     "id": 101,

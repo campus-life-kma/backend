@@ -87,7 +87,7 @@ class FloorMapDataSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Floor
-        fields = ["id", "number", "map_file", "dormitory_name", "rooms", "active_floor_events"]
+        fields = ["id", "number", "map_file", "dormitory_name", "notice", "rooms", "active_floor_events"]
 
     @extend_schema_field(SocialEventMapSerializer(many=True))
     def get_active_floor_events(self, obj):
