@@ -332,7 +332,10 @@ class ResourceDetailView(APIView):
         try:
             resource = service.update_resource(request.user, resource_id, serializer.validated_data)
         except ValueError as exc:
-            return Response({"detail": str(exc)}, status=status.HTTP_404_NOT_FOUND)
+            response_status = status.HTTP_404_NOT_FOUND
+            if str(exc) != "Ресурс не знайдено!":
+                response_status = status.HTTP_400_BAD_REQUEST
+            return Response({"detail": str(exc)}, status=response_status)
 
         response_serializer = ResourceSerializer(resource, context={"request": request})
         return Response(response_serializer.data, status=status.HTTP_200_OK)

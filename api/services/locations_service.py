@@ -144,22 +144,20 @@ class LocationsService:
 
         resource_type = data.get("resource_type")
         if resource_type:
-            kitchen_resources = ["OVEN", "COOKTOP", "STOVE", "MICROWAVE", "FRIDGE"]
-            laundry_resources = ["WASHING_MACHINE", "DRYER", "IRON"]
-
-            if room.room_type.type == "KITCHEN" and resource_type.type in laundry_resources:
-                raise ValueError("Цей тип ресурсу не підходить для кухні.")
-            if room.room_type.type == "LAUNDRY" and resource_type.type in kitchen_resources:
-                raise ValueError("Цей тип ресурсу не підходить для пральні.")
+            self._validate_resource_type_for_room(room, resource_type)
 
         data["room"] = room
         return Resource.objects.create(**data)
 
     def update_resource(self, user, resource_id, data) -> Resource:
         try:
-            resource = Resource.objects.get(id=resource_id)
+            resource = Resource.objects.select_related("room", "room__room_type", "resource_type").get(id=resource_id)
         except Resource.DoesNotExist:
             raise ValueError("Ресурс не знайдено!")
+
+        resource_type = data.get("resource_type")
+        if resource_type:
+            self._validate_resource_type_for_room(resource.room, resource_type)
 
         for key, value in data.items():
             setattr(resource, key, value)
@@ -196,3 +194,12 @@ class LocationsService:
             AnnouncementsService().create_announcement(actor, announcement_data)
         except AnnouncementError as exc:
             raise ValueError("Не вдалося надіслати сповіщення користувачам. Дію скасовано.") from exc
+
+    def _validate_resource_type_for_room(self, room: Room, resource_type):
+        kitchen_resources = ["OVEN", "COOKTOP", "STOVE", "MICROWAVE", "FRIDGE"]
+        laundry_resources = ["WASHING_MACHINE", "DRYER", "IRON"]
+
+        if room.room_type.type == "KITCHEN" and resource_type.type in laundry_resources:
+            raise ValueError("Цей тип ресурсу не підходить для кухні.")
+        if room.room_type.type == "LAUNDRY" and resource_type.type in kitchen_resources:
+            raise ValueError("Цей тип ресурсу не підходить для пральні.")
