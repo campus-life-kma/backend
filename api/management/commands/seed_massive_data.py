@@ -5,7 +5,6 @@ from django.contrib.auth.hashers import make_password
 from django.utils import timezone
 from api.models import (
     Room,
-    Faculty,
     Major,
     Role,
     User,
@@ -21,7 +20,7 @@ from api.models import (
 class Command(BaseCommand):
     help = "Наповнює базу великою кількістю тестових даних для симуляції реального навантаження"
 
-    def handle(self, *args, **kwargs):  # noqa: C901
+    def handle(self, *args, **kwargs):
         self.stdout.write("Починаємо генерацію МАСИВНИХ тестових даних...")
 
         try:
@@ -34,7 +33,7 @@ class Command(BaseCommand):
             self.stderr.write(f"Помилка: Базові статуси не знайдені ({e}). Спочатку виконайте міграції (migrate).")
             return
 
-        living_rooms = list(Room.objects.filter(room_type__type="LIVING"))
+        living_rooms = list(Room.objects.filter(room_type__type="LIVING").exclude(floor__number=1))
         if not living_rooms:
             self.stderr.write("Помилка: Немає житлових кімнат. Перевірте, чи існують кімнати в базі.")
             return
@@ -46,17 +45,49 @@ class Command(BaseCommand):
 
         resources = list(Resource.objects.all())
 
-        unusable_password = make_password("password123")
+        self._clear_old_data()
 
+        available_slots = self._get_available_slots()
+
+        users = self._create_massive_users(resident_role, available_slots, majors)
+
+        self._generate_sharing_requests(users, active_sharing, completed_sharing)
+        self._generate_social_events(users, active_sharing, living_rooms)
+        self._generate_bookings(users, resources, active_booking, cancelled_booking)
+
+        self.stdout.write(self.style.SUCCESS("Успішно згенеровано МАСИВНІ тестові дані!"))
+
+    def _clear_old_data(self):
         self.stdout.write("Очищення старих даних (івенти, шеринг, бронювання)...")
         SocialEvent.objects.all().delete()
         SocialSharingRequest.objects.all().delete()
         Booking.objects.all().delete()
-
-        # Видалення старих масивних користувачів
         User.objects.filter(email__startswith="massive_user_").delete()
 
-        self.stdout.write("Створення 200 користувачів...")
+    def _get_available_slots(self):
+        from django.db.models import Count
+
+        rooms_with_counts = (
+            Room.objects.filter(room_type__type="LIVING")
+            .exclude(floor__number=1)
+            .annotate(current_residents=Count("user"))
+        )
+
+        available_slots = []
+        for r in rooms_with_counts:
+            if r.is_blocked:
+                continue
+            free_slots = r.max_person - r.current_residents
+            for _ in range(free_slots):
+                available_slots.append(r)
+
+        random.shuffle(available_slots)
+        return available_slots
+
+    def _create_massive_users(self, resident_role, available_slots, majors):
+        unusable_password = make_password("password123")
+        num_users = min(200, len(available_slots))
+        self.stdout.write(f"Створення {num_users} користувачів...")
 
         first_names = [
             "Олександр",
@@ -91,7 +122,7 @@ class Command(BaseCommand):
         ]
 
         users_to_create = []
-        for i in range(1, 201):
+        for i in range(1, num_users + 1):
             pos = random.choices(
                 [User.Position.STUDENT, User.Position.TEACHER, User.Position.EMPLOYEE], weights=[80, 15, 5]
             )[0]
@@ -102,7 +133,7 @@ class Command(BaseCommand):
                 email=f"massive_user_{i}@ukma.edu.ua",
                 password=unusable_password,
                 role=resident_role,
-                room=random.choice(living_rooms),
+                room=available_slots[i - 1],
                 is_activated=True,
                 full_name=full_name,
                 status=random.choice(["Вчуся", "Сплю", "На парах", "", "Пишу код"]),
@@ -122,8 +153,9 @@ class Command(BaseCommand):
             users_to_create.append(User(**user_data))
 
         User.objects.bulk_create(users_to_create)
-        users = list(User.objects.filter(email__startswith="massive_user_"))
+        return list(User.objects.filter(email__startswith="massive_user_"))
 
+    def _generate_sharing_requests(self, users, active_sharing, completed_sharing):
         self.stdout.write("Генерація 100 запитів на шеринг...")
         sharing_requests = []
         sharing_titles = [
@@ -146,6 +178,7 @@ class Command(BaseCommand):
             )
         SocialSharingRequest.objects.bulk_create(sharing_requests)
 
+    def _generate_social_events(self, users, active_sharing, living_rooms):
         self.stdout.write("Генерація 50 соціальних подій...")
         now = timezone.now()
         event_titles = [
@@ -157,7 +190,6 @@ class Command(BaseCommand):
             "Турнір з FIFA",
             "Обговорення диплому",
         ]
-        events = []
         for i in range(50):
             start = now + timedelta(days=random.randint(-2, 7), hours=random.randint(1, 12))
             max_p = random.randint(0, 15)
@@ -172,21 +204,19 @@ class Command(BaseCommand):
                 room=random.choice(living_rooms),
             )
             event.save()
-            events.append(event)
-            # Додаємо учасників, не перевищуючи ліміт
             limit = max_p if max_p > 0 else 15
             num_participants = random.randint(1, limit)
             participants = random.sample(users, num_participants)
             event.participants.add(*participants)
 
+    def _generate_bookings(self, users, resources, active_booking, cancelled_booking):
         self.stdout.write("Генерація 500 бронювань...")
         if resources:
+            now = timezone.now()
             bookings_to_create = []
             for i in range(500):
                 resource = random.choice(resources)
-                # Рандомний час в межах тижня (минулого чи майбутнього)
                 start = now + timedelta(days=random.randint(-7, 7), hours=random.randint(-12, 12))
-                # Округляємо до 30 хвилин для реалістичності
                 start = start.replace(minute=random.choice([0, 30]), second=0, microsecond=0)
                 end = start + timedelta(hours=random.choice([1, 2]))
                 bookings_to_create.append(
@@ -198,8 +228,5 @@ class Command(BaseCommand):
                         status=random.choice([active_booking, cancelled_booking]),
                     )
                 )
-            # Будуть колізії, але bulk_create ігнорує бізнес-логіку з сервісів (що ок для seed'а, якщо не на рівні БД)
-            # Щоб уникнути помилок на рівні БД (якщо є constraints), просто створюємо
-            Booking.objects.bulk_create(bookings_to_create)
 
-        self.stdout.write(self.style.SUCCESS("Успішно згенеровано МАСИВНІ тестові дані!"))
+            Booking.objects.bulk_create(bookings_to_create)
