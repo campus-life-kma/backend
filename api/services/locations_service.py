@@ -22,8 +22,6 @@ class LocationsService:
 
     def block_room(self, user, room_id) -> Room:
         room = self._get_room(room_id)
-        if room.user_set.exists():
-            raise ValueError("Не можна заблокувати кімнату, в якій є мешканці.")
 
         now = timezone.now()
         bookings_service = BookingsService()
@@ -90,9 +88,6 @@ class LocationsService:
         room = self._get_room(room_id)
 
         is_blocked_new = data.pop("is_blocked", None)
-
-        if is_blocked_new is True and room.user_set.exists():
-            raise ValueError("Не можна заблокувати кімнату, в якій є мешканці.")
 
         room_type_new = data.get("room_type")
         if room_type_new:

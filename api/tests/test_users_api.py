@@ -17,6 +17,7 @@ class UsersApiTests(APITestCase):
         self.moderator_role, _ = Role.objects.get_or_create(name="MODERATOR")
 
         self.faculty = Faculty.objects.create(name="Факультет тестування профілів")
+        self.other_faculty = Faculty.objects.create(name="Факультет викладачів профілів")
         self.major = Major.objects.create(faculty=self.faculty, name="Тестова спеціальність профілів")
         self.other_major = Major.objects.create(faculty=self.faculty, name="Інша тестова спеціальність")
 
@@ -193,6 +194,28 @@ class UsersApiTests(APITestCase):
         self.user.refresh_from_db()
         self.assertEqual(self.user.education_level, User.EducationLevel.PHD)
         self.assertEqual(self.user.year, 4)
+
+    def test_admin_can_set_faculty_for_teacher(self):
+        response = self.client.patch(
+            reverse("user-info", args=[self.user.id]),
+            {
+                "position": User.Position.TEACHER,
+                "faculty": self.other_faculty.id,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.position, User.Position.TEACHER)
+        self.assertEqual(self.user.faculty, self.other_faculty)
+        self.assertIsNone(self.user.major)
+        self.assertIsNone(self.user.education_level)
+        self.assertIsNone(self.user.year)
+        self.assertEqual(response.data["faculty_id"], self.other_faculty.id)
+        self.assertEqual(response.data["faculty_name"], self.other_faculty.name)
+        self.assertIn("Факультет", mail.outbox[0].body)
+        self.assertIn(self.other_faculty.name, mail.outbox[0].body)
 
     def test_moderator_can_update_status_and_bio_for_user_on_own_floor(self):
         self.client.force_authenticate(user=self.moderator)

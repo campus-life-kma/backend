@@ -14,9 +14,9 @@ from api.serializers.user_serializer import (
 class UserService:
     def get_user_by_id(self, user_id: str) -> User:
         try:
-            return User.objects.select_related("role", "room__floor", "room__room_type", "major__faculty").get(
-                id=user_id
-            )
+            return User.objects.select_related(
+                "role", "room__floor", "room__room_type", "major__faculty", "faculty"
+            ).get(id=user_id)
         except User.DoesNotExist:
             raise NotFound(detail="Користувача з таким id не знайдено!")
 
@@ -121,6 +121,8 @@ class UserService:
             "photo": "Аватар",
             "room": "Кімната проживання",
             "major": "Спеціальність",
+            "faculty": "Факультет",
+            "position": "Позиція у ВНЗ",
             "education_level": "Рівень навчання",
             "year": "Курс",
             "status": "Статус",
@@ -141,7 +143,7 @@ class UserService:
         return changes
 
     def profile_values_equal(self, field: str, old_value, new_value) -> bool:
-        if field in {"role", "room", "major"}:
+        if field in {"role", "room", "major", "faculty"}:
             old_id = getattr(old_value, "id", None)
             new_id = getattr(new_value, "id", None)
             return old_id == new_id
@@ -164,6 +166,12 @@ class UserService:
         if field == "major":
             return f"{value.name} ({value.faculty.name})"
 
+        if field == "faculty":
+            return value.name
+
+        if field == "position":
+            return self.format_position(value)
+
         if field == "education_level":
             return self.format_education_level(value)
 
@@ -177,6 +185,14 @@ class UserService:
             User.EducationLevel.BACHELOR: "Бакалавр",
             User.EducationLevel.MASTER: "Магістр",
             User.EducationLevel.PHD: "Аспірант",
+        }
+        return labels.get(value, value)
+
+    def format_position(self, value: str) -> str:
+        labels = {
+            User.Position.STUDENT: "Студент",
+            User.Position.TEACHER: "Викладач",
+            User.Position.EMPLOYEE: "Працівник",
         }
         return labels.get(value, value)
 

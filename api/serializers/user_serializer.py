@@ -159,18 +159,18 @@ class AdminUserUpdateSerializer(serializers.ModelSerializer):
 
         # Якщо користувач не студент, ми ігноруємо education_level та year, а також major
         if position != User.Position.STUDENT:
-            if "education_level" in attrs:
-                attrs["education_level"] = None
-            if "year" in attrs:
-                attrs["year"] = None
-            if "major" in attrs:
-                attrs["major"] = None
+            attrs["education_level"] = None
+            attrs["year"] = None
+            attrs["major"] = None
 
             # Якщо працівник, він не має і факультету
-            if position == User.Position.EMPLOYEE and "faculty" in attrs:
+            if position == User.Position.EMPLOYEE:
                 attrs["faculty"] = None
 
             return attrs
+
+        if "faculty" in attrs or attrs.get("position") == User.Position.STUDENT:
+            attrs["faculty"] = None
 
         education_level = attrs.get("education_level", getattr(self.instance, "education_level", None))
         year = attrs.get("year", getattr(self.instance, "year", None))
