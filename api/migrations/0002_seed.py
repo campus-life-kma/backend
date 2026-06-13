@@ -35,6 +35,7 @@ def insert_initial_data(apps, schema_editor):
         RoomType(type='LAUNDRY'),
         RoomType(type='KITCHEN'),
         RoomType(type='BATHROOM'),
+        RoomType(type='TOILET'),
         RoomType(type='STORAGE')
     ])
 
