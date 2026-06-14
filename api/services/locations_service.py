@@ -299,11 +299,12 @@ class LocationsService:
         was_blocked = resource.is_blocked
         for key, value in data.items():
             setattr(resource, key, value)
-        
+
         with transaction.atomic():
             resource.save()
             if not was_blocked and resource.is_blocked:
                 from api.services.bookings_service import BookingsService
+
                 BookingsService().cancel_active_resource_bookings(resource, actor=user)
 
         return resource
@@ -319,6 +320,7 @@ class LocationsService:
             resource = Resource.objects.get(id=resource_id)
             with transaction.atomic():
                 from api.services.bookings_service import BookingsService
+
                 BookingsService().cancel_active_resource_bookings(resource, actor=user)
                 resource.delete()
         except Resource.DoesNotExist:

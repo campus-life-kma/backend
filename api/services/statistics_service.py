@@ -164,13 +164,15 @@ class StatisticsService:
             moderators = User.objects.filter(role__name="MODERATOR", is_activated=True)
             moderator_actions = []
             for mod in moderators:
-                moderator_actions.append({
-                    "moderator_id": mod.id,
-                    "moderator_name": mod.full_name or mod.email,
-                    "cancelled_events": SocialEvent.objects.filter(cancelled_by=mod).count(),
-                    "cancelled_sharings": SocialSharingRequest.objects.filter(cancelled_by=mod).count(),
-                    "cancelled_bookings": Booking.objects.filter(cancelled_by=mod).count(),
-                })
+                moderator_actions.append(
+                    {
+                        "moderator_id": mod.id,
+                        "moderator_name": mod.full_name or mod.email,
+                        "cancelled_events": SocialEvent.objects.filter(cancelled_by=mod).count(),
+                        "cancelled_sharings": SocialSharingRequest.objects.filter(cancelled_by=mod).count(),
+                        "cancelled_bookings": Booking.objects.filter(cancelled_by=mod).count(),
+                    }
+                )
             result["moderator_actions"] = moderator_actions
 
         return result

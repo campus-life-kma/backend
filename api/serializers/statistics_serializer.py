@@ -115,4 +115,6 @@ class StatisticsSummarySerializer(serializers.Serializer):
     social = SocialStatisticsSerializer(help_text="Статистика соціальної активності")
     announcements = AnnouncementsStatisticsSerializer(help_text="Статистика оголошень")
     presence = PresenceStatisticsSerializer(help_text="Статистика присутності")
-    moderator_actions = ModeratorActionSerializer(many=True, required=False, help_text="Дії модераторів (тільки для адміністратора)")
+    moderator_actions = ModeratorActionSerializer(
+        many=True, required=False, help_text="Дії модераторів (тільки для адміністратора)"
+    )

@@ -298,7 +298,7 @@ class AnnouncementRecipientsView(APIView):
             "ordering": query_params.get("ordering", "").strip(),
             "role": query_params.get("role", "").strip(),
         }
-        
+
         if "position" in query_params:
             filters["position"] = query_params.get("position", "").strip()
         if "is_active" in query_params:

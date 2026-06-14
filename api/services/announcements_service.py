@@ -115,11 +115,11 @@ class AnnouncementsService:
         queryset = User.objects.exclude(email="").select_related(
             "role", "room", "room__floor", "room__floor__dormitory", "major", "major__faculty"
         )
-        
+
         # За замовчуванням для оголошень повертаємо лише активованих
         if filters is None or "is_active" not in filters:
             queryset = queryset.filter(is_activated=True)
-            
+
         return queryset
 
     def scope_recipients_for_user(self, user, recipients, filters):
