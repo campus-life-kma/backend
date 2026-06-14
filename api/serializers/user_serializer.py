@@ -157,13 +157,11 @@ class AdminUserUpdateSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         position = attrs.get("position", getattr(self.instance, "position", User.Position.STUDENT))
 
-        # Якщо користувач не студент, ми ігноруємо education_level та year, а також major
         if position != User.Position.STUDENT:
             attrs["education_level"] = None
             attrs["year"] = None
             attrs["major"] = None
 
-            # Якщо працівник, він не має і факультету
             if position == User.Position.EMPLOYEE:
                 attrs["faculty"] = None
 

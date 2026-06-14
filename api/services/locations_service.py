@@ -129,7 +129,6 @@ class LocationsService:
                 setattr(room, key, value)
             room.save()
 
-        # Якщо статус блокування змінився
         if is_blocked_new is not None and is_blocked_new != room.is_blocked:
             if is_blocked_new:
                 self.block_room(user, room_id)
