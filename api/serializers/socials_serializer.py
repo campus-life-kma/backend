@@ -7,6 +7,8 @@ from api.serializers.user_serializer import UserMapSerializer
 
 
 class SocialEventMapSerializer(serializers.ModelSerializer):
+    """Полегшений серіалізатор соціальної події для відображення на інтерактивній карті."""
+
     creator = UserMapSerializer(read_only=True, help_text="Організатор івенту")
     status = serializers.CharField(source="status.status", read_only=True, help_text="Поточний статус івенту")
     participants_count = serializers.SerializerMethodField(help_text="Кількість учасників")
@@ -16,7 +18,8 @@ class SocialEventMapSerializer(serializers.ModelSerializer):
         fields = ["id", "title", "creator", "status", "participants_count"]
 
     @extend_schema_field(serializers.IntegerField)
-    def get_participants_count(self, obj):
+    def get_participants_count(self, obj) -> int:
+        """Повертає кількість учасників події (використовує анотацію за наявності)."""
         annotated_count = getattr(obj, "participants_count", None)
         if annotated_count is not None:
             return annotated_count
@@ -25,6 +28,8 @@ class SocialEventMapSerializer(serializers.ModelSerializer):
 
 
 class SocialEventCreateSerializer(serializers.ModelSerializer):
+    """Серіалізатор для створення нової соціальної події."""
+
     room = serializers.PrimaryKeyRelatedField(
         queryset=Room.objects.all(),
         required=False,
@@ -69,7 +74,8 @@ class SocialEventCreateSerializer(serializers.ModelSerializer):
             "is_major_only": {"help_text": "Чи доступна подія тільки студентам спеціальності автора"},
         }
 
-    def validate_custom_location(self, value):
+    def validate_custom_location(self, value: str) -> str | None:
+        """Очищує кастомну назву локації від зайвих пробілів."""
         if value is None:
             return value
 
@@ -77,10 +83,11 @@ class SocialEventCreateSerializer(serializers.ModelSerializer):
         return value or None
 
     def validate(self, attrs):
+        """Перевіряє коректність часу початку/завершення та наявність локації події."""
         now = timezone.now()
 
         if attrs["start_time"] < now:
-            raise serializers.ValidationError({"start_time": "Час початку події не може бути в минулому."})
+            raise serializers.ValidationError({"start_time": "Час початку події не може быть в минулому."})
 
         if attrs["end_time"] <= attrs["start_time"]:
             raise serializers.ValidationError({"end_time": "Час завершення має бути пізніше часу початку."})
@@ -94,6 +101,8 @@ class SocialEventCreateSerializer(serializers.ModelSerializer):
 
 
 class SocialEventDetailSerializer(serializers.ModelSerializer):
+    """Детальний серіалізатор для перегляду інформації про соціальну подію."""
+
     creator = UserMapSerializer(read_only=True, help_text="Автор події")
     status = serializers.CharField(source="status.status", read_only=True, help_text="Поточний статус івенту")
     participants_count = serializers.SerializerMethodField(help_text="Кількість учасників")
@@ -125,11 +134,11 @@ class SocialEventDetailSerializer(serializers.ModelSerializer):
         ]
 
     @extend_schema_field(serializers.CharField)
-    def get_type(self, obj):
+    def get_type(self, obj) -> str:
         return "event"
 
     @extend_schema_field(serializers.IntegerField)
-    def get_participants_count(self, obj):
+    def get_participants_count(self, obj) -> int:
         annotated_count = getattr(obj, "participants_count", None)
         if annotated_count is not None:
             return annotated_count
@@ -137,7 +146,8 @@ class SocialEventDetailSerializer(serializers.ModelSerializer):
         return obj.participants.count()
 
     @extend_schema_field(serializers.IntegerField)
-    def get_floor_id(self, obj):
+    def get_floor_id(self, obj) -> int | None:
+        """Повертає ID поверху події безпосередньо або через кімнату."""
         if obj.floor_id:
             return obj.floor_id
 
@@ -148,6 +158,8 @@ class SocialEventDetailSerializer(serializers.ModelSerializer):
 
 
 class SocialEventFullDetailSerializer(SocialEventDetailSerializer):
+    """Розширений детальний серіалізатор події, що включає повний список учасників."""
+
     participants = UserMapSerializer(many=True, read_only=True, help_text="Список учасників події")
 
     class Meta(SocialEventDetailSerializer.Meta):
@@ -157,6 +169,8 @@ class SocialEventFullDetailSerializer(SocialEventDetailSerializer):
 
 
 class SocialSharingRequestCreateSerializer(serializers.ModelSerializer):
+    """Серіалізатор для створення нового запиту на шеринг речей."""
+
     class Meta:
         model = SocialSharingRequest
         fields = ["title"]
@@ -166,6 +180,8 @@ class SocialSharingRequestCreateSerializer(serializers.ModelSerializer):
 
 
 class SocialSharingRequestDetailSerializer(serializers.ModelSerializer):
+    """Детальний серіалізатор запиту на шеринг речей."""
+
     creator = UserMapSerializer(read_only=True, help_text="Автор запиту")
     status = serializers.CharField(source="status.status", read_only=True, help_text="Поточний статус запиту")
     type = serializers.SerializerMethodField(help_text="Тип елемента стрічки")
@@ -176,11 +192,11 @@ class SocialSharingRequestDetailSerializer(serializers.ModelSerializer):
         fields = ["type", "id", "title", "creator", "status", "created_at", "floor_id"]
 
     @extend_schema_field(serializers.CharField)
-    def get_type(self, obj):
+    def get_type(self, obj) -> str:
         return "sharing_request"
 
     @extend_schema_field(serializers.IntegerField)
-    def get_floor_id(self, obj):
+    def get_floor_id(self, obj) -> int | None:
         if obj.creator.room_id:
             return obj.creator.room.floor_id
 
@@ -188,6 +204,8 @@ class SocialSharingRequestDetailSerializer(serializers.ModelSerializer):
 
 
 class SocialEventFeedSerializer(serializers.ModelSerializer):
+    """Серіалізатор події для відображення в загальній стрічці активностей."""
+
     creator = UserMapSerializer(read_only=True, help_text="Автор події")
     status = serializers.CharField(source="status.status", read_only=True, help_text="Поточний статус івенту")
     type = serializers.SerializerMethodField(help_text="Тип елемента стрічки")
@@ -211,11 +229,13 @@ class SocialEventFeedSerializer(serializers.ModelSerializer):
         ]
 
     @extend_schema_field(serializers.CharField)
-    def get_type(self, obj):
+    def get_type(self, obj) -> str:
         return "event"
 
 
 class SocialSharingRequestFeedSerializer(serializers.ModelSerializer):
+    """Серіалізатор запиту на шеринг для відображення в загальній стрічці активностей."""
+
     creator = UserMapSerializer(read_only=True, help_text="Автор запиту")
     status = serializers.CharField(source="status.status", read_only=True, help_text="Поточний статус запиту")
     type = serializers.SerializerMethodField(help_text="Тип елемента стрічки")
@@ -225,11 +245,13 @@ class SocialSharingRequestFeedSerializer(serializers.ModelSerializer):
         fields = ["type", "id", "title", "creator", "status", "created_at"]
 
     @extend_schema_field(serializers.CharField)
-    def get_type(self, obj):
+    def get_type(self, obj) -> str:
         return "sharing_request"
 
 
 class SocialEventUpdateSerializer(serializers.ModelSerializer):
+    """Серіалізатор для оновлення параметрів соціальної події."""
+
     room = serializers.PrimaryKeyRelatedField(queryset=Room.objects.all(), required=False, allow_null=True)
     floor = serializers.PrimaryKeyRelatedField(queryset=Floor.objects.all(), required=False, allow_null=True)
     custom_location = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=255)
@@ -250,6 +272,7 @@ class SocialEventUpdateSerializer(serializers.ModelSerializer):
         ]
 
     def validate(self, attrs):
+        """Перевіряє валідність нових значень полів події при її зміні."""
         now = timezone.now()
 
         start_time = attrs.get("start_time", self.instance.start_time if self.instance else None)
@@ -280,6 +303,8 @@ class SocialEventUpdateSerializer(serializers.ModelSerializer):
 
 
 class SocialSharingRequestUpdateSerializer(serializers.ModelSerializer):
+    """Серіалізатор для редагування запиту на шеринг."""
+
     class Meta:
         model = SocialSharingRequest
         fields = ["title"]

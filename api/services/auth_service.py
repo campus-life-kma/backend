@@ -14,7 +14,18 @@ logger = logging.getLogger(__name__)
 
 
 class DevLoginService:
+    """Сервіс аутентифікації для потреб локальної розробки (без взаємодії з Microsoft)."""
+
     def execute_login(self, email: str) -> dict | None:
+        """Здійснює вхід користувача за email.
+
+        Args:
+            email: Електронна адреса користувача.
+
+        Returns:
+            dict | None: Словник з access/refresh токенами та даними користувача,
+                         або None, якщо користувач не активований чи не існує.
+        """
         try:
             user = User.objects.get(email=email, is_activated=True)
             refresh = RefreshToken.for_user(user)
@@ -25,10 +36,19 @@ class DevLoginService:
 
 
 class LoginService:
+    """Сервіс аутентифікації через Microsoft Graph API."""
+
     GRAPH_API_URL = "https://graph.microsoft.com/v1.0/me"
     PHOTO_API_URL = "https://graph.microsoft.com/v1.0/me/photo/$value"
 
     def _activate_user(self, user: User, dto: MicrosoftUserDTO, headers: dict) -> None:
+        """Активує обліковий запис користувача, оновлюючи його ім'я, навчання та фото.
+
+        Args:
+            user: Об'єкт користувача, який активується.
+            dto: Отримані від Microsoft дані користувача.
+            headers: Заголовки запиту Microsoft API з токеном авторизації.
+        """
         names_changed = self._update_user_name(user, dto)
         academic_changed = self._update_user_academic_info(user, dto)
         photo_changed = self._update_user_photo(user, headers)
@@ -38,6 +58,15 @@ class LoginService:
             user.save()
 
     def _update_user_name(self, user: User, dto: MicrosoftUserDTO) -> bool:
+        """Оновлює повне ім'я користувача на основі даних Microsoft.
+
+        Args:
+            user: Об'єкт користувача.
+            dto: Дані MicrosoftUserDTO.
+
+        Returns:
+            bool: True, якщо ім'я було успішно оновлено.
+        """
         user_changed = False
         full_name = dto.display_name
 
@@ -50,12 +79,22 @@ class LoginService:
         return user_changed
 
     def _update_user_academic_info(self, user: User, dto: MicrosoftUserDTO) -> bool:
+        """Оновлює курс навчання та спеціальність на основі назви групи Microsoft.
+
+        Args:
+            user: Об'єкт користувача.
+            dto: Дані MicrosoftUserDTO.
+
+        Returns:
+            bool: True, якщо дані про навчання були успішно оновлені.
+        """
         user_changed = False
         major_name, admission_year = dto.get_parsed_academic_info()
 
         if not admission_year:
             logger.info("Admission year not found in microsoft database!")
         elif not user.year:
+            # Обчислюємо поточний курс навчання користувача від року вступу
             today = date.today()
             calc_year = today.year - admission_year + (1 if today.month >= 8 else 0)
             user.year = max(1, min(calc_year, 4))
@@ -74,6 +113,15 @@ class LoginService:
         return user_changed
 
     def _update_user_photo(self, user: User, headers: dict) -> bool:
+        """Завантажує та оновлює фото профілю користувача з Microsoft Office 365.
+
+        Args:
+            user: Об'єкт користувача.
+            headers: Заголовки авторизації Microsoft API.
+
+        Returns:
+            bool: True, якщо фото профілю було успішно завантажено та збережено.
+        """
         if user.photo:
             return False
 
@@ -86,15 +134,21 @@ class LoginService:
                 user.photo.save(file_name, ContentFile(photo_res.content), save=False)
                 return True
             else:
-                logger.info(
-                    f"Photo not found or API error. Status: {photo_res.status_code}, " f"Details: {photo_res.text}"
-                )
+                logger.info(f"Photo not found or API error. Status: {photo_res.status_code}, Details: {photo_res.text}")
         except requests.exceptions.RequestException as e:
             logger.warning(f"Photo API Connection Error: {e}")
 
         return False
 
     def execute_login(self, microsoft_access_token: str) -> dict | None:
+        """Здійснює вхід користувача через Microsoft OAuth 2.0 токен доступу.
+
+        Args:
+            microsoft_access_token: Токен доступу Microsoft.
+
+        Returns:
+            dict | None: JWT токени та дані користувача, або None у разі помилки.
+        """
         headers = {"Authorization": f"Bearer {microsoft_access_token}", "Content-Type": "application/json"}
 
         try:

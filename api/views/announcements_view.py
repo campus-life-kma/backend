@@ -19,7 +19,15 @@ from api.services.announcements_service import (
 )
 
 
-def get_announcement_error_status(error):
+def get_announcement_error_status(error) -> int:
+    """Визначає код статусу відповіді HTTP на основі класу винятку оголошень.
+
+    Args:
+        error: Виняток типу AnnouncementError.
+
+    Returns:
+        int: Статус-код відповіді HTTP.
+    """
     if isinstance(error, AnnouncementEmailSendError):
         return status.HTTP_500_INTERNAL_SERVER_ERROR
 
@@ -33,6 +41,8 @@ def get_announcement_error_status(error):
 
 
 class ActiveAnnouncementsView(APIView):
+    """Представлення для отримання списку діючих оголошень користувача."""
+
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
@@ -72,6 +82,14 @@ class ActiveAnnouncementsView(APIView):
         },
     )
     def get(self, request):
+        """Отримує список усіх активних і призначених для користувача оголошень.
+
+        Args:
+            request: Об'єкт HTTP-запиту.
+
+        Returns:
+            Response: Список оголошень.
+        """
         service = AnnouncementsService()
         announcements = service.get_active_announcements(request.user)
         serializer = AnnouncementSerializer(announcements, many=True, context={"request": request})
@@ -79,6 +97,8 @@ class ActiveAnnouncementsView(APIView):
 
 
 class AnnouncementReadView(APIView):
+    """Представлення для маркування оголошення прочитаним."""
+
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
@@ -131,6 +151,15 @@ class AnnouncementReadView(APIView):
         },
     )
     def post(self, request, announcement_id):
+        """Позначає оголошення прочитаним для поточного користувача.
+
+        Args:
+            request: Об'єкт HTTP-запиту.
+            announcement_id: ID оголошення.
+
+        Returns:
+            Response: Повідомлення про успіх або помилка з відповідним кодом.
+        """
         service = AnnouncementsService()
 
         try:
@@ -142,6 +171,8 @@ class AnnouncementReadView(APIView):
 
 
 class AnnouncementRecipientsView(APIView):
+    """Представлення для відображення списку потенційних адресатів створюваного оголошення."""
+
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
@@ -149,8 +180,8 @@ class AnnouncementRecipientsView(APIView):
         summary="Отримати доступних адресатів оголошення",
         description=(
             "Повертає компактний список активованих користувачів для створення адресного оголошення. "
-            "Адміністратор бачить усіх активованих користувачів. Голова поверху бачить лише мешканців свого поверху. "
-            "Підтримує пошук, фільтрацію та сортування за полями, які повертаються в списку."
+            "Адміністратор бачить усіх користувачів, модератор — лише свого поверху. "
+            "Підтримує фільтрацію, пошук та сортування."
         ),
         parameters=[
             OpenApiParameter(
@@ -234,6 +265,14 @@ class AnnouncementRecipientsView(APIView):
         },
     )
     def get(self, request):
+        """Отримує фільтрований список користувачів-адресатів.
+
+        Args:
+            request: Об'єкт HTTP-запиту.
+
+        Returns:
+            Response: Список адресатів з кодом 200 OK.
+        """
         service = AnnouncementsService()
 
         try:
@@ -245,12 +284,25 @@ class AnnouncementRecipientsView(APIView):
         serializer = AnnouncementRecipientSerializer(recipients, many=True, context={"request": request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-    def get_filters(self, query_params):
+    def get_filters(self, query_params) -> dict:
+        """Перетворює query-параметри запиту на словник фільтрів.
+
+        Args:
+            query_params: Параметри URL-запиту.
+
+        Returns:
+            dict: Валідовані фільтри.
+        """
         filters = {
             "q": query_params.get("q", "").strip(),
             "ordering": query_params.get("ordering", "").strip(),
             "role": query_params.get("role", "").strip(),
         }
+
+        if "position" in query_params:
+            filters["position"] = query_params.get("position", "").strip()
+        if "is_active" in query_params:
+            filters["is_active"] = query_params.get("is_active", "").strip()
 
         for key in ["floor_id", "room_id", "faculty_id", "major_id", "year"]:
             value = query_params.get(key)
@@ -265,16 +317,16 @@ class AnnouncementRecipientsView(APIView):
 
 
 class AnnouncementCreateView(APIView):
+    """Представлення для створення нового оголошення."""
+
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
         tags=["Оголошення"],
         summary="Створення оголошення",
         description=(
-            "Створює оголошення в системі та синхронно надсилає один email-лист усім отримувачам, "
-            "які відповідають обраному target_type. Створення оголошення і надсилання листа виконуються "
-            "в одній DB-транзакції: якщо email не вдалося надіслати, оголошення не зберігається. "
-            "У email-розсилку потрапляють лише користувачі з is_activated=True та непорожньою email-адресою."
+            "Створює оголошення в системі та синхронно надсилає один email-лист усім отримувачам. "
+            "Створення оголошення і надсилання листа виконуються в одній транзакції БД."
         ),
         request=AnnouncementCreateSerializer,
         examples=[
@@ -382,6 +434,14 @@ class AnnouncementCreateView(APIView):
         },
     )
     def post(self, request):
+        """Створює нове оголошення та ініціює розсилку email-сповіщень.
+
+        Args:
+            request: Об'єкт HTTP-запиту.
+
+        Returns:
+            Response: Дані створеного оголошення з кодом 201 Created.
+        """
         serializer = AnnouncementCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 

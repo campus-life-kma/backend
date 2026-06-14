@@ -9,6 +9,8 @@ from api.services.presence_service import PresenceService
 
 
 class PresenceCheckInView(APIView):
+    """Представлення для відмітки присутності мешканця в спільній кімнаті."""
+
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
@@ -64,6 +66,14 @@ class PresenceCheckInView(APIView):
         },
     )
     def post(self, request):
+        """Реєструє присутність поточного користувача у спільній кімнаті.
+
+        Args:
+            request: Об'єкт HTTP-запиту.
+
+        Returns:
+            Response: Дані відмітки або повідомлення про помилку з кодом 400/404.
+        """
         serializer = PresenceCheckInSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -82,6 +92,8 @@ class PresenceCheckInView(APIView):
 
 
 class PresenceGoHomeView(APIView):
+    """Представлення для очищення поточної присутності (позначка 'Я пішов')."""
+
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
@@ -98,12 +110,22 @@ class PresenceGoHomeView(APIView):
         },
     )
     def post(self, request):
+        """Скасовує поточну присутність мешканця.
+
+        Args:
+            request: Об'єкт HTTP-запиту.
+
+        Returns:
+            Response: Повідомлення про успішне очищення з кодом 200 OK.
+        """
         service = PresenceService()
         service.go_home(request.user)
         return Response({"detail": "Присутність очищено."}, status=status.HTTP_200_OK)
 
 
 class PresenceMeView(APIView):
+    """Представлення для отримання поточної відмітки присутності користувача."""
+
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
@@ -119,6 +141,14 @@ class PresenceMeView(APIView):
         },
     )
     def get(self, request):
+        """Повертає діючу відмітку присутності користувача.
+
+        Args:
+            request: Об'єкт HTTP-запиту.
+
+        Returns:
+            Response: Дані присутності або null.
+        """
         service = PresenceService()
         presence = service.get_current(request.user)
         if presence is None:

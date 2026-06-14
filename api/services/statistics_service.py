@@ -16,7 +16,20 @@ from api.models import (
 
 
 class StatisticsService:
+    """Сервіс збору та аналізу статистичних даних по гуртожитку або конкретному поверху."""
+
     def get_summary(self, user: User) -> dict:
+        """Повертає загальний звіт про роботу гуртожитку на основі ролі користувача.
+
+        Args:
+            user: Користувач, який запитує статистику.
+
+        Returns:
+            dict: Звіт зі статистичними даними.
+
+        Raises:
+            PermissionDenied: Якщо користувач не має прав доступу (не адмін і не модератор).
+        """
         if user.is_admin:
             return self.get_admin_summary(user)
 
@@ -26,6 +39,14 @@ class StatisticsService:
         raise PermissionDenied(detail="Статистика доступна лише адміністраторам і модераторам.")
 
     def get_admin_summary(self, user: User) -> dict:
+        """Формує статистичний звіт для адміністратора по всьому гуртожитку.
+
+        Args:
+            user: Об'єкт адміністратора.
+
+        Returns:
+            dict: Дані статистики гуртожитку.
+        """
         dormitory = user.room.floor.dormitory if user.room_id else None
         floors = Floor.objects.all()
         if dormitory:
@@ -34,6 +55,14 @@ class StatisticsService:
         return self.build_summary(user=user, floors=floors, scope_type="DORMITORY")
 
     def get_moderator_summary(self, user: User) -> dict:
+        """Формує статистичний звіт для модератора конкретного поверху.
+
+        Args:
+            user: Об'єкт модератора поверху.
+
+        Returns:
+            dict: Дані статистики поверху.
+        """
         if not user.room_id:
             raise ValidationError(
                 {"detail": "Модератор не прив'язаний до кімнати, тому поверх для статистики невідомий."}
@@ -43,11 +72,22 @@ class StatisticsService:
         return self.build_summary(user=user, floors=floors, scope_type="FLOOR")
 
     def build_summary(self, user: User, floors, scope_type: str) -> dict:
+        """Формує консолідований звіт по мешканцях, кімнатах, бронюваннях та активностях.
+
+        Args:
+            user: Користувач, який запитує звіт.
+            floors: QuerySet поверхів, що входять в область перегляду.
+            scope_type: Масштаб звіту ("DORMITORY" або "FLOOR").
+
+        Returns:
+            dict: Словник з підрахованими показниками.
+        """
         floor_ids = list(floors.values_list("id", flat=True))
         now = timezone.now()
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         tomorrow_start = today_start + timezone.timedelta(days=1)
 
+        # Збираємо вибірки за ідентифікаторами поверхів
         users = User.objects.filter(room__floor_id__in=floor_ids)
         rooms = Room.objects.filter(floor_id__in=floor_ids)
         resources = Resource.objects.filter(room__floor_id__in=floor_ids)
@@ -62,7 +102,7 @@ class StatisticsService:
         active_social_filter = Q(status__status="ACTIVE")
         cancelled_social_filter = Q(status__status="CANCELLED")
 
-        return {
+        result = {
             "scope": self.build_scope(user=user, floors=floors, scope_type=scope_type),
             "residents": {
                 "total": users.count(),
@@ -120,7 +160,25 @@ class StatisticsService:
             },
         }
 
+        if user.is_admin:
+            moderators = User.objects.filter(role__name="MODERATOR", is_activated=True)
+            moderator_actions = []
+            for mod in moderators:
+                moderator_actions.append(
+                    {
+                        "moderator_id": mod.id,
+                        "moderator_name": mod.full_name or mod.email,
+                        "cancelled_events": SocialEvent.objects.filter(cancelled_by=mod).count(),
+                        "cancelled_sharings": SocialSharingRequest.objects.filter(cancelled_by=mod).count(),
+                        "cancelled_bookings": Booking.objects.filter(cancelled_by=mod).count(),
+                    }
+                )
+            result["moderator_actions"] = moderator_actions
+
+        return result
+
     def build_scope(self, user: User, floors, scope_type: str) -> dict:
+        """Будує метадані області перегляду статистики."""
         first_floor = floors.select_related("dormitory").order_by("number").first()
         return {
             "type": scope_type,
@@ -131,6 +189,7 @@ class StatisticsService:
         }
 
     def count_full_rooms(self, rooms) -> int:
+        """Рахує кількість повністю заселених житлових кімнат."""
         return (
             rooms.filter(room_type__type="LIVING")
             .annotate(residents_count=Count("user", filter=Q(user__is_activated=True)))
@@ -139,6 +198,7 @@ class StatisticsService:
         )
 
     def get_top_resources(self, bookings) -> list[dict]:
+        """Повертає топ-5 найбільш затребуваних ресурсів за кількістю бронювань."""
         rows = (
             bookings.values("resource_id", "resource__name", "resource__room__name", "resource__room__floor__number")
             .annotate(count=Count("id"))
@@ -156,6 +216,7 @@ class StatisticsService:
         ]
 
     def get_floor_activity(self, floors, now) -> list[dict]:
+        """Підраховує активність (івенти, шеринг, присутність) по кожному поверху."""
         data = []
         for floor in floors.order_by("number"):
             data.append(
@@ -180,6 +241,7 @@ class StatisticsService:
         return data
 
     def get_announcements_for_scope(self, user: User, floor_ids: list[int], scope_type: str):
+        """Отримує оголошення, що відносяться до вказаної області видимості поверхів."""
         if scope_type == "DORMITORY":
             return Announcement.objects.filter(
                 Q(target_type__type="GLOBAL")

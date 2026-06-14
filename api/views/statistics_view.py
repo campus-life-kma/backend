@@ -9,6 +9,8 @@ from api.services.statistics_service import StatisticsService
 
 
 class StatisticsSummaryView(APIView):
+    """Представлення для отримання агрегованої статистики по гуртожитку."""
+
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
@@ -109,5 +111,13 @@ class StatisticsSummaryView(APIView):
         },
     )
     def get(self, request):
+        """Повертає статистичний звіт для авторизованого адміністратора або модератора.
+
+        Args:
+            request: Об'єкт HTTP-запиту.
+
+        Returns:
+            Response: Дані звіту з кодом 200 OK.
+        """
         summary = StatisticsService().get_summary(request.user)
         return Response(summary, status=status.HTTP_200_OK)

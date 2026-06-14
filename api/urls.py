@@ -1,3 +1,5 @@
+"""Конфігурація маршрутів (URL) додатку api для платформи Campus Life."""
+
 from django.conf import settings
 from django.urls import path
 
@@ -31,6 +33,7 @@ from api.views.dictionaries_view import (
 )
 from api.views.locations_view import (
     FloorsView,
+    FloorDetailView,
     FloorMapDataView,
     RoomBlockView,
     RoomCreateView,
@@ -52,20 +55,27 @@ from api.views.socials_view import (
     SocialEventDetailView,
 )
 from api.views.statistics_view import StatisticsSummaryView
-from api.views.user_view import UserDetailView
+from api.views.user_view import UserDetailView, UserCreateView
 
 urlpatterns = [
+    # Аутентифікація
     path("auth/refresh/", CustomTokenRefreshView.as_view(), name="token_refresh"),
     path("auth/login/", LoginView.as_view(), name="login"),
     path("auth/me/", AuthMeView.as_view(), name="auth-me"),
+    # Локації (Поверхи та кімнати)
     path("floors/<int:dormitory_id>/", FloorsView.as_view(), name="floors"),
+    path("floors/detail/<int:floor_id>/", FloorDetailView.as_view(), name="floor-detail"),
     path("floors/<int:floor_id>/map-data/", FloorMapDataView.as_view(), name="floor-map-data"),
     path("floors/<int:floor_id>/rooms/", RoomCreateView.as_view(), name="room-create"),
     path("rooms/<int:room_id>/block/", RoomBlockView.as_view(), name="room-block"),
     path("rooms/<int:room_id>/unblock/", RoomUnblockView.as_view(), name="room-unblock"),
+    path("rooms/<int:room_id>/", RoomUpdateView.as_view(), name="room-update"),
+    path("rooms/<int:room_id>/resources/", ResourceCreateView.as_view(), name="resource-create"),
+    # Присутність мешканців
     path("presence/me/", PresenceMeView.as_view(), name="presence-me"),
     path("presence/check-in/", PresenceCheckInView.as_view(), name="presence-check-in"),
     path("presence/go-home/", PresenceGoHomeView.as_view(), name="presence-go-home"),
+    # Соціальна стрічка, події та шеринг
     path("feed/<int:page>/", FeedView.as_view(), name="feed"),
     path("events/", SocialEventCreateView.as_view(), name="event-create"),
     path("events/<int:event_id>/join/", SocialEventJoinView.as_view(), name="event-join"),
@@ -76,21 +86,28 @@ urlpatterns = [
         "sharing-requests/<int:request_id>/done/", SocialSharingRequestDoneView.as_view(), name="sharing-request-done"
     ),
     path("sharing-requests/<int:request_id>/", SocialSharingRequestDetailView.as_view(), name="sharing-request-detail"),
+    # Оголошення
     path("announcements/active/", ActiveAnnouncementsView.as_view(), name="announcements-active"),
     path("announcements/recipients/", AnnouncementRecipientsView.as_view(), name="announcement-recipients"),
     path("announcements/<int:announcement_id>/read/", AnnouncementReadView.as_view(), name="announcement-read"),
     path("announcements/", AnnouncementCreateView.as_view(), name="announcement-create"),
+    # Статистика
     path("statistics/summary/", StatisticsSummaryView.as_view(), name="statistics-summary"),
+    # Бронювання ресурсів
     path("resources/<int:resource_id>/schedule/", ResourceScheduleView.as_view(), name="resource-schedule"),
     path("resources/<int:resource_id>/block/", ResourceBlockView.as_view(), name="resource-block"),
     path("resources/<int:resource_id>/unblock/", ResourceUnblockView.as_view(), name="resource-unblock"),
+    path("resources/<int:resource_id>/", ResourceDetailView.as_view(), name="resource-detail"),
     path("bookings/", BookingCreateView.as_view(), name="booking-create"),
     path("bookings/<int:booking_id>/", BookingUpdateView.as_view(), name="booking-update"),
     path("bookings/me/", MyBookingsView.as_view(), name="bookings-me"),
     path("bookings/<int:booking_id>/cancel/", BookingCancelView.as_view(), name="booking-cancel"),
+    path("bookings/<int:booking_id>/", BookingDetailView.as_view(), name="booking-detail"),
+    # Користувачі
+    path("users/", UserCreateView.as_view(), name="user-create"),
     path("users/<uuid:user_id>/", UserDetailView.as_view(), name="user-info"),
     path("users/<uuid:user_id>/social-activity/", UserSocialProfileView.as_view(), name="user-social-activity"),
-    path("bookings/<int:booking_id>/", BookingDetailView.as_view(), name="booking-detail"),
+    # Словникові ендпоінти для фільтрів/форм
     path("faculties/", FacultyListView.as_view(), name="faculty-list"),
     path("majors/", MajorListView.as_view(), name="major-list"),
     path("roles/", RoleListView.as_view(), name="role-list"),
@@ -100,9 +117,6 @@ urlpatterns = [
     path("rooms/", RoomListView.as_view(), name="room-list"),
     path("room-types/", RoomTypeListView.as_view(), name="room-type-list"),
     path("resource-types/", ResourceTypeListView.as_view(), name="resource-type-list"),
-    path("rooms/<int:room_id>/", RoomUpdateView.as_view(), name="room-update"),
-    path("rooms/<int:room_id>/resources/", ResourceCreateView.as_view(), name="resource-create"),
-    path("resources/<int:resource_id>/", ResourceDetailView.as_view(), name="resource-detail"),
 ]
 
 if settings.DEBUG:

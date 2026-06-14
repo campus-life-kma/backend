@@ -5,6 +5,8 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 
 
 class Faculty(models.Model):
+    """Модель факультету."""
+
     name = models.CharField(
         max_length=255, unique=True, help_text="Повна назва факультету (наприклад, Факультет інформатики)"
     )
@@ -14,6 +16,8 @@ class Faculty(models.Model):
 
 
 class Major(models.Model):
+    """Модель спеціальності, що належить до конкретного факультету."""
+
     faculty = models.ForeignKey(
         Faculty,
         related_name="majors",
@@ -31,6 +35,8 @@ class Major(models.Model):
 
 
 class Role(models.Model):
+    """Модель ролі користувача у системі (ADMIN, MODERATOR, RESIDENT)."""
+
     name = models.CharField(
         max_length=100, unique=True, help_text="Унікальна назва системної ролі (ADMIN, MODERATOR, RESIDENT)"
     )
@@ -40,6 +46,8 @@ class Role(models.Model):
 
 
 class User(AbstractUser):
+    """Кастомна модель користувача Campus Life, яка використовує email як головний ідентифікатор."""
+
     class EducationLevel(models.TextChoices):
         BACHELOR = "BACHELOR", "Бакалавр"
         MASTER = "MASTER", "Магістр"
@@ -54,7 +62,7 @@ class User(AbstractUser):
         primary_key=True, default=uuid.uuid4, editable=False, help_text="Унікальний ідентифікатор користувача (UUID)"
     )
 
-    username = None
+    username = None  # Вимикаємо стандартне поле username, оскільки використовуємо email
     email = models.EmailField(unique=True, help_text="Корпоративна електронна пошта (наприклад, @ukma.edu.ua)")
 
     full_name = models.CharField(max_length=500, null=True, blank=True, help_text="Повне ім'я мешканця")
@@ -92,7 +100,7 @@ class User(AbstractUser):
         on_delete=models.PROTECT,
         null=True,
         blank=True,
-        help_text="Системна роль, яка визначає рівень доступу до функцій платформи",
+        help_text="Системна роль, яка визначає рівень доступу",
     )
     major = models.ForeignKey(
         Major,
@@ -108,18 +116,16 @@ class User(AbstractUser):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        help_text="Факультет, до якого належить викладач",
+        help_text="Факультет, до якого належить користувач",
     )
 
-    status = models.CharField(
-        max_length=100, blank=True, help_text="Короткий статус або настрій (відображається в публічному профілі)"
-    )
-    bio = models.TextField(blank=True, help_text="Детальна інформація про себе: інтереси, соц мережі, хобі тощо")
+    status = models.CharField(max_length=100, blank=True, help_text="Короткий статус або настрій")
+    bio = models.TextField(blank=True, help_text="Детальна інформація про себе")
     photo = models.ImageField(upload_to="avatars/", null=True, blank=True, help_text="Файл аватарки профілю")
 
     is_activated = models.BooleanField(
         default=False,
-        help_text="Прапорець активації (стає True після першого логіну та заповнення обов'язкових полів профілю)",
+        help_text="Прапорець активації після першого логіну",
     )
 
     USERNAME_FIELD = "email"
@@ -127,11 +133,13 @@ class User(AbstractUser):
 
     @property
     def is_admin(self) -> bool:
-        return self.role and self.role.name == "ADMIN"
+        """Перевіряє, чи має користувач роль ADMIN."""
+        return bool(self.role and self.role.name == "ADMIN")
 
     @property
     def is_moderator(self) -> bool:
-        return self.role and self.role.name == "MODERATOR"
+        """Перевіряє, чи має користувач роль MODERATOR."""
+        return bool(self.role and self.role.name == "MODERATOR")
 
     def __str__(self):
         if self.full_name:

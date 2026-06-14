@@ -4,6 +4,8 @@ from api.models import Presence
 
 
 class PresenceCheckInSerializer(serializers.Serializer):
+    """Серіалізатор для вхідних даних реєстрації присутності."""
+
     room_id = serializers.IntegerField(
         min_value=1,
         required=True,
@@ -17,6 +19,8 @@ class PresenceCheckInSerializer(serializers.Serializer):
 
 
 class PresenceResponseSerializer(serializers.ModelSerializer):
+    """Серіалізатор представлення активного запису присутності користувача."""
+
     room_id = serializers.IntegerField(read_only=True, help_text="ID кімнати, у якій відмічено присутність")
     room_name = serializers.CharField(source="room.name", read_only=True, help_text="Назва кімнати")
     floor_id = serializers.IntegerField(source="room.floor.id", read_only=True, help_text="ID поверху кімнати")

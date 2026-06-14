@@ -22,6 +22,14 @@ from api.services.bookings_service import (
 
 
 def get_booking_error_status(error):
+    """Повертає HTTP-статус на основі типу помилки бронювання.
+
+    Args:
+        error: Екземпляр винятку BookingError чи його підкласів.
+
+    Returns:
+        int: Код HTTP-статусу (400, 403, 404 або 500).
+    """
     if isinstance(error, BookingStatusNotFoundError):
         return status.HTTP_500_INTERNAL_SERVER_ERROR
 
@@ -35,6 +43,8 @@ def get_booking_error_status(error):
 
 
 class ResourceScheduleView(APIView):
+    """Ендпоінт для отримання розкладу зайнятості ресурсу на обрані дати."""
+
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
@@ -113,6 +123,15 @@ class ResourceScheduleView(APIView):
         },
     )
     def get(self, request, resource_id):
+        """Повертає зайняті слоти ресурсу за діапазоном дат.
+
+        Args:
+            request: HTTP-запит, може містити start_date/end_date як query params.
+            resource_id: Ідентифікатор ресурсу.
+
+        Returns:
+            Response: Список зайнятих слотів або 404.
+        """
         service = BookingsService()
 
         start_date = request.query_params.get("start_date")
@@ -128,6 +147,8 @@ class ResourceScheduleView(APIView):
 
 
 class BookingCreateView(APIView):
+    """Ендпоінт для створення бронювання ресурсу."""
+
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
@@ -219,6 +240,14 @@ class BookingCreateView(APIView):
         },
     )
     def post(self, request):
+        """Створює нове бронювання для поточного користувача.
+
+        Args:
+            request: HTTP-запит із даними бронювання (resource, start_time, end_time).
+
+        Returns:
+            Response: Дані створеного бронювання або помилку бізнес-логіки.
+        """
         serializer = BookingCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -234,6 +263,8 @@ class BookingCreateView(APIView):
 
 
 class MyBookingsView(APIView):
+    """Ендпоінт для отримання актуальних бронювань поточного користувача."""
+
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
@@ -294,6 +325,14 @@ class MyBookingsView(APIView):
         },
     )
     def get(self, request):
+        """Повертає майбутні та поточні бронювання користувача.
+
+        Args:
+            request: HTTP-запит від авторизованого користувача.
+
+        Returns:
+            Response: Список актуальних бронювань (ACTIVE та CANCELLED не з минулого).
+        """
         service = BookingsService()
         bookings = service.get_my_bookings(request.user)
         serializer = BookingSerializer(bookings, many=True, context={"request": request})
@@ -301,6 +340,8 @@ class MyBookingsView(APIView):
 
 
 class BookingCancelView(APIView):
+    """Ендпоінт для скасування бронювання."""
+
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
@@ -374,6 +415,15 @@ class BookingCancelView(APIView):
         },
     )
     def patch(self, request, booking_id):
+        """Скасовує бронювання.
+
+        Args:
+            request: HTTP-запит.
+            booking_id: Ідентифікатор бронювання.
+
+        Returns:
+            Response: Оновлені дані бронювання із статусом CANCELLED або помилку.
+        """
         service = BookingsService()
 
         try:
@@ -386,6 +436,8 @@ class BookingCancelView(APIView):
 
 
 class ResourceBlockView(APIView):
+    """Ендпоінт для блокування ресурсу (тільки адміністратор)."""
+
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
@@ -449,6 +501,15 @@ class ResourceBlockView(APIView):
         },
     )
     def patch(self, request, resource_id):
+        """Блокує ресурс і скасовує всі майбутні бронювання на нього.
+
+        Args:
+            request: HTTP-запит.
+            resource_id: Ідентифікатор ресурсу.
+
+        Returns:
+            Response: Дані заблокованого ресурсу та кількість скасованих бронювань.
+        """
         service = BookingsService()
 
         try:
@@ -467,6 +528,8 @@ class ResourceBlockView(APIView):
 
 
 class ResourceUnblockView(APIView):
+    """Ендпоінт для розблокування ресурсу (тільки адміністратор)."""
+
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
@@ -527,6 +590,15 @@ class ResourceUnblockView(APIView):
         },
     )
     def patch(self, request, resource_id):
+        """Розблоковує ресурс, роблячи його знову доступним для бронювання.
+
+        Args:
+            request: HTTP-запит.
+            resource_id: Ідентифікатор ресурсу.
+
+        Returns:
+            Response: Дані розблокованого ресурсу або помилку.
+        """
         service = BookingsService()
 
         try:
@@ -539,6 +611,8 @@ class ResourceUnblockView(APIView):
 
 
 class BookingUpdateView(APIView):
+    """Ендпоінт для редагування часу бронювання."""
+
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
@@ -654,6 +728,15 @@ class BookingUpdateView(APIView):
         },
     )
     def patch(self, request, booking_id):
+        """Переносить бронювання на інший час, ігноруючи поточний слот цієї броні.
+
+        Args:
+            request: HTTP-запит із новими значеннями start_time і end_time.
+            booking_id: Ідентифікатор бронювання.
+
+        Returns:
+            Response: Оновлені дані бронювання або помилку.
+        """
         serializer = BookingUpdateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -669,6 +752,8 @@ class BookingUpdateView(APIView):
 
 
 class BookingDetailView(APIView):
+    """Ендпоінт для отримання деталей конкретного бронювання."""
+
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
@@ -730,6 +815,15 @@ class BookingDetailView(APIView):
         },
     )
     def get(self, request, booking_id):
+        """Повертає деталі бронювання за його ID.
+
+        Args:
+            request: HTTP-запит.
+            booking_id: Ідентифікатор бронювання.
+
+        Returns:
+            Response: Дані бронювання або 404.
+        """
         service = BookingsService()
 
         try:

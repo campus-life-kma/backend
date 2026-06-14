@@ -6,6 +6,8 @@ from api.serializers.user_serializer import UserMapSerializer
 
 
 class AnnouncementSerializer(serializers.ModelSerializer):
+    """Серіалізатор для виведення детальної інформації про оголошення."""
+
     creator = UserMapSerializer(read_only=True, help_text="Автор оголошення")
     target_type = serializers.CharField(source="target_type.type", read_only=True, help_text="Тип аудиторії оголошення")
     target_floor_id = serializers.IntegerField(source="target_floor.id", read_only=True, allow_null=True)
@@ -29,11 +31,14 @@ class AnnouncementSerializer(serializers.ModelSerializer):
         ]
 
     @extend_schema_field(serializers.ListField(child=serializers.CharField()))
-    def get_target_user_ids(self, obj):
+    def get_target_user_ids(self, obj) -> list[str]:
+        """Повертає список рядкових UUID користувачів-отримувачів."""
         return [str(user_id) for user_id in obj.target_users.values_list("id", flat=True)]
 
 
 class AnnouncementCreateSerializer(serializers.Serializer):
+    """Серіалізатор для створення оголошення з валідацією полів адресації."""
+
     title = serializers.CharField(
         max_length=255,
         help_text="Короткий заголовок оголошення",
@@ -105,6 +110,7 @@ class AnnouncementCreateSerializer(serializers.Serializer):
     )
 
     def validate(self, attrs):
+        """Гарантує, що поля отримувачів заповнені відповідно до обраного типу аудиторії."""
         target_type = attrs["target_type"].type
         target_floor = attrs.get("target_floor")
         target_room = attrs.get("target_room")

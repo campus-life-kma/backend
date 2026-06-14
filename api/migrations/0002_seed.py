@@ -156,7 +156,12 @@ def insert_initial_data(apps, schema_editor):
     storage_type = RoomType.objects.get(type='STORAGE')
 
     floor1 = Floor.objects.create(dormitory=dorm, number=1, map_file="maps/map_1.svg")
-    Floor.objects.create(dormitory=dorm, number=2, map_file="maps/map_2.svg")
+    Floor.objects.create(
+        dormitory=dorm,
+        number=2,
+        map_file="maps/map_2.svg",
+        notice="2-й поверх не належить гуртожитку, це звичайний житловий будинок.",
+    )
 
     Room.objects.bulk_create([
         Room(floor=floor1, room_type=living_room_type, name="Кімната швейцара", max_person=3, svg_element_id="doorman_room"),

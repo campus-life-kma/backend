@@ -12,7 +12,20 @@ from api.serializers.user_serializer import (
 
 
 class UserService:
+    """Сервіс керування профілями користувачів, оновленням даних та виселенням."""
+
     def get_user_by_id(self, user_id: str) -> User:
+        """Отримує детальні дані користувача за його ID.
+
+        Args:
+            user_id: Ідентифікатор користувача.
+
+        Returns:
+            User: Знайдений користувач з підвантаженими зв'язаними сутностями.
+
+        Raises:
+            NotFound: Якщо користувача з таким ID не існує.
+        """
         try:
             return User.objects.select_related(
                 "role", "room__floor", "room__room_type", "major__faculty", "faculty"
@@ -21,6 +34,19 @@ class UserService:
             raise NotFound(detail="Користувача з таким id не знайдено!")
 
     def update_profile(self, acting_user: User, target_user_id: str, update_data: dict) -> User:
+        """Редагує профіль користувача відповідно до ролей та повноважень.
+
+        Args:
+            acting_user: Користувач, який виконує оновлення.
+            target_user_id: ID користувача, чий профіль оновлюється.
+            update_data: Дані профілю для оновлення.
+
+        Returns:
+            User: Оновлений користувач.
+
+        Raises:
+            PermissionDenied: Якщо користувач не має прав на редагування.
+        """
         target_user = self.get_user_by_id(target_user_id)
 
         can_moderator_edit = self.can_moderator_edit_profile(acting_user, target_user)
@@ -28,6 +54,7 @@ class UserService:
         if not acting_user.is_admin and acting_user.id != target_user.id and not can_moderator_edit:
             raise PermissionDenied(detail="Ви не маєте прав для редагування цього профілю.")
 
+        # Визначаємо серіалізатор на основі прав користувача
         if acting_user.is_admin:
             serializer_class = AdminUserUpdateSerializer
         elif can_moderator_edit:
@@ -58,6 +85,12 @@ class UserService:
             return serializer.save()
 
     def evict_user(self, acting_user: User, target_user_id: str):
+        """Виселяє користувача з гуртожитку (видаляє акаунт з системи) з надсиланням листа.
+
+        Args:
+            acting_user: Адміністратор, який проводить виселення.
+            target_user_id: ID користувача, якого виселяють.
+        """
         target_user = self.get_user_by_id(target_user_id)
 
         if not acting_user.is_admin:
@@ -75,7 +108,46 @@ class UserService:
                 ) from exc
             target_user.delete()
 
+    def create_user(self, acting_user: User, validated_data: dict) -> User:
+        """Створює нового користувача адміністратором."""
+        if not acting_user.is_admin:
+            raise PermissionDenied(detail="Лише адміністратор може створювати нових користувачів.")
+
+        room = validated_data.get("room")
+        with transaction.atomic():
+            if room:
+                room = Room.objects.select_related("floor", "room_type").select_for_update().get(id=room.id)
+                if room.room_type.type != "LIVING":
+                    raise ValidationError({"room": ["Користувача можна поселити лише в житлову кімнату."]})
+                if room.is_blocked:
+                    raise ValidationError({"room": ["Ця кімната заблокована, тому поселення в неї недоступне."]})
+                resident_count = User.objects.select_for_update().filter(room=room).count()
+                if resident_count >= room.max_person:
+                    raise ValidationError({"room": ["У цій кімнаті немає вільних місць."]})
+
+            new_user = User(**validated_data)
+            new_user.set_unusable_password()
+            new_user.save()
+
+            if new_user.email:
+                body = (
+                    "Вітаємо!\n\n"
+                    "Ваш профіль у системі Campus Life успішно створено.\n"
+                    "Для входу в систему використовуйте вашу корпоративну пошту Microsoft 365.\n\n"
+                    "З повагою,\nАдміністрація гуртожитку"
+                )
+                send_mail(
+                    subject="Campus Life: ваш профіль створено",
+                    message=body,
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    recipient_list=[new_user.email],
+                    fail_silently=True,
+                )
+
+        return new_user
+
     def can_moderator_edit_profile(self, acting_user: User, target_user: User) -> bool:
+        """Перевіряє, чи є діючий користувач модератором того ж поверху, де проживає цільовий користувач."""
         return bool(
             acting_user.is_moderator
             and acting_user.id != target_user.id
@@ -85,12 +157,14 @@ class UserService:
         )
 
     def validate_moderator_profile_update(self, update_data: dict):
+        """Гарантує, що модератор змінює виключно дозволені поля (статус та біо)."""
         allowed_fields = {"status", "bio"}
         forbidden_fields = set(update_data.keys()) - allowed_fields
         if forbidden_fields:
             raise PermissionDenied(detail="Модератор може редагувати лише статус і біо мешканців свого поверху.")
 
     def validate_admin_room_change(self, target_user: User, validated_data: dict):
+        """Валідує переселення користувача адміністратором у нову кімнату (тип кімнати, блокування, місця)."""
         if "room" not in validated_data:
             return
 
@@ -98,6 +172,7 @@ class UserService:
         if room is None:
             return
 
+        # Блокуємо рядок обраної кімнати для уникнення race condition при конкурентних поселеннях
         room = Room.objects.select_related("floor", "room_type").select_for_update().get(id=room.id)
 
         if room.room_type.type != "LIVING":
@@ -112,7 +187,8 @@ class UserService:
         if len(resident_ids) >= room.max_person:
             raise ValidationError({"room": ["У цій кімнаті немає вільних місць."]})
 
-    def build_profile_changes(self, target_user: User, validated_data: dict):
+    def build_profile_changes(self, target_user: User, validated_data: dict) -> list[dict]:
+        """Відстежує змінені поля профілю для формування тексту листа-сповіщення."""
         changes = []
         labels = {
             "role": "Роль",
@@ -143,6 +219,7 @@ class UserService:
         return changes
 
     def profile_values_equal(self, field: str, old_value, new_value) -> bool:
+        """Порівнює попереднє та нове значення поля профілю."""
         if field in {"role", "room", "major", "faculty"}:
             old_id = getattr(old_value, "id", None)
             new_id = getattr(new_value, "id", None)
@@ -154,6 +231,7 @@ class UserService:
         return old_value == new_value
 
     def format_profile_value(self, field: str, value) -> str:
+        """Форматує значення поля у людиночитаний рядок для листа."""
         if value in (None, ""):
             return "не вказано"
 
@@ -181,6 +259,7 @@ class UserService:
         return str(value)
 
     def format_education_level(self, value: str) -> str:
+        """Форматує рівень навчання."""
         labels = {
             User.EducationLevel.BACHELOR: "Бакалавр",
             User.EducationLevel.MASTER: "Магістр",
@@ -189,6 +268,7 @@ class UserService:
         return labels.get(value, value)
 
     def format_position(self, value: str) -> str:
+        """Форматує посаду/роль користувача у ВНЗ."""
         labels = {
             User.Position.STUDENT: "Студент",
             User.Position.TEACHER: "Викладач",
@@ -197,6 +277,7 @@ class UserService:
         return labels.get(value, value)
 
     def notify_profile_updated(self, user: User, changes: list[dict], actor_label: str):
+        """Надсилає email-сповіщення про зміну параметрів профілю адміністратором/модератором."""
         if not changes or not user.is_activated or not user.email:
             return
 
@@ -219,6 +300,7 @@ class UserService:
         )
 
     def notify_user_evicted(self, user: User):
+        """Надсилає email-сповіщення користувачу про його виселення з гуртожитку."""
         if not user.email:
             return
 
