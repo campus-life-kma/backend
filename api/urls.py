@@ -54,7 +54,7 @@ from api.views.socials_view import (
     SocialEventDetailView,
 )
 from api.views.statistics_view import StatisticsSummaryView
-from api.views.user_view import UserDetailView
+from api.views.user_view import UserDetailView, UserCreateView
 
 urlpatterns = [
     # Аутентифікація
@@ -101,7 +101,8 @@ urlpatterns = [
     path("bookings/me/", MyBookingsView.as_view(), name="bookings-me"),
     path("bookings/<int:booking_id>/cancel/", BookingCancelView.as_view(), name="booking-cancel"),
     path("bookings/<int:booking_id>/", BookingDetailView.as_view(), name="booking-detail"),
-    # Користувачі та профілі
+    # Користувачі
+    path("users/", UserCreateView.as_view(), name="user-create"),
     path("users/<uuid:user_id>/", UserDetailView.as_view(), name="user-info"),
     path("users/<uuid:user_id>/social-activity/", UserSocialProfileView.as_view(), name="user-social-activity"),
     # Словникові ендпоінти для фільтрів/форм

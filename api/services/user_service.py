@@ -108,6 +108,44 @@ class UserService:
                 ) from exc
             target_user.delete()
 
+    def create_user(self, acting_user: User, validated_data: dict) -> User:
+        """Створює нового користувача адміністратором."""
+        if not acting_user.is_admin:
+            raise PermissionDenied(detail="Лише адміністратор може створювати нових користувачів.")
+
+        room = validated_data.get("room")
+        with transaction.atomic():
+            if room:
+                room = Room.objects.select_related("floor", "room_type").select_for_update().get(id=room.id)
+                if room.room_type.type != "LIVING":
+                    raise ValidationError({"room": ["Користувача можна поселити лише в житлову кімнату."]})
+                if room.is_blocked:
+                    raise ValidationError({"room": ["Ця кімната заблокована, тому поселення в неї недоступне."]})
+                resident_count = User.objects.select_for_update().filter(room=room).count()
+                if resident_count >= room.max_person:
+                    raise ValidationError({"room": ["У цій кімнаті немає вільних місць."]})
+
+            new_user = User(**validated_data)
+            new_user.set_unusable_password()
+            new_user.save()
+
+            if new_user.email:
+                body = (
+                    "Вітаємо!\n\n"
+                    "Ваш профіль у системі Campus Life успішно створено.\n"
+                    "Для входу в систему використовуйте вашу корпоративну пошту Microsoft 365.\n\n"
+                    "З повагою,\nАдміністрація гуртожитку"
+                )
+                send_mail(
+                    subject="Campus Life: ваш профіль створено",
+                    message=body,
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    recipient_list=[new_user.email],
+                    fail_silently=True,
+                )
+
+        return new_user
+
     def can_moderator_edit_profile(self, acting_user: User, target_user: User) -> bool:
         """Перевіряє, чи є діючий користувач модератором того ж поверху, де проживає цільовий користувач."""
         return bool(

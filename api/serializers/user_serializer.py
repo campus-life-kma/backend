@@ -262,3 +262,27 @@ class AnnouncementRecipientSerializer(serializers.ModelSerializer):
         if obj.position == User.Position.STUDENT and obj.major:
             return obj.major.faculty.name
         return None
+
+
+class UserCreateSerializer(serializers.ModelSerializer):
+    """Серіалізатор для створення нового користувача адміністратором."""
+
+    class Meta:
+        model = User
+        fields = [
+            "email",
+            "position",
+            "role",
+            "room",
+        ]
+        extra_kwargs = {
+            "email": {"required": True},
+            "position": {"required": True},
+            "role": {"required": True},
+            "room": {"required": True},
+        }
+
+    def validate_email(self, value):
+        if User.objects.filter(email=value).exists():
+            raise serializers.ValidationError("Користувач з такою поштою вже існує.")
+        return value

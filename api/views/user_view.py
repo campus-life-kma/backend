@@ -5,8 +5,30 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from api.serializers.user_serializer import UserFullSerializer, AdminUserUpdateSerializer
+from api.serializers.user_serializer import UserFullSerializer, AdminUserUpdateSerializer, UserCreateSerializer
 from api.services.user_service import UserService
+
+
+class UserCreateView(APIView):
+    """Контролер для створення нового користувача адміністратором."""
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=["Користувачі"],
+        summary="Створити нового користувача",
+        request=UserCreateSerializer,
+        responses={201: UserFullSerializer},
+    )
+    def post(self, request):
+        serializer = UserCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        user_service = UserService()
+        new_user = user_service.create_user(acting_user=request.user, validated_data=serializer.validated_data)
+
+        response_serializer = UserFullSerializer(new_user)
+        return Response(response_serializer.data, status=status.HTTP_201_CREATED)
 
 
 class UserDetailView(APIView):
