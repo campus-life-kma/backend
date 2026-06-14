@@ -1,5 +1,7 @@
 from datetime import datetime, time
 
+from django.conf import settings
+from django.core.mail import send_mail
 from django.db import transaction
 from django.db.models import Count, F, Q, Value
 from django.db.models.fields import CharField
@@ -666,6 +668,23 @@ class SocialsService:
             update_fields.append("status")
 
         event.save(update_fields=update_fields or None)
+
+        participants_emails = list(event.participants.exclude(id=user.id).values_list("email", flat=True))
+        if participants_emails:
+            body = (
+                f"Увага!\n\n"
+                f"Організатор '{user.display_name}' щойно вніс зміни до події '{event.title}'.\n"
+                f"Будь ласка, перевірте оновлену інформацію щодо місця або часу проведення.\n\n"
+                f"З повагою,\nКоманда Campus Life"
+            )
+            send_mail(
+                subject=f"Оновлення події: {event.title}",
+                message=body,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=participants_emails,
+                fail_silently=True,
+            )
+
         return event
 
     def update_sharing_request(self, user, request_id, validated_data) -> SocialSharingRequest:
