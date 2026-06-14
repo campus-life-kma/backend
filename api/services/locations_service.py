@@ -160,7 +160,7 @@ class LocationsService:
                         if invalid:
                             raise ValueError("У кімнаті є інвентар (наприклад, плита), що не підходить для пральні.")
             # Перевіряємо, чи в кімнаті проживають люди при спробі зробити її нежитловою
-            if room_type_new.type in ["KITCHEN", "LAUNDRY", "TOILET", "BATHROOM"]:
+            if room_type_new.type != "LIVING":
                 if room.user_set.exists():
                     raise ValueError(
                         "Не можна зробити кімнату нежитловою, оскільки в ній зараз проживають студенти. "
@@ -171,6 +171,15 @@ class LocationsService:
         if new_name and new_name != room.name:
             if Room.objects.filter(floor__dormitory=room.floor.dormitory, name=new_name).exclude(id=room.id).exists():
                 raise ValueError("Кімната з такою назвою вже існує в цьому гуртожитку.")
+
+        max_person_new = data.get("max_person")
+        if max_person_new is not None:
+            current_residents_count = room.user_set.count()
+            if max_person_new < current_residents_count:
+                raise ValueError(
+                    f"Не можна встановити місткість ({max_person_new}), яка менша за "
+                    f"поточну кількість мешканців ({current_residents_count})."
+                )
 
         with transaction.atomic():
             for key, value in data.items():
