@@ -13,7 +13,7 @@ class FloorListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Floor
-        fields = ["id", "number"]
+        fields = ["id", "number", "map_file"]
 
 
 class RoomBlockSerializer(serializers.ModelSerializer):

@@ -32,6 +32,56 @@ class LocationsService:
         except Dormitory.DoesNotExist:
             raise ValueError("Гуртожитку з таким id не знайдено!")
 
+    def create_floor(self, user, dormitory_id: int, number: int, map_file) -> Floor:
+        """Створює новий поверх.
+
+        Args:
+            user: Користувач.
+            dormitory_id: ID гуртожитку.
+            number: Номер поверху.
+            map_file: SVG файл мапи.
+
+        Raises:
+            ValueError: Якщо гуртожиток не знайдено або поверх вже існує.
+        """
+        if not user.is_staff and getattr(user, "role", None) != "ADMIN":
+            raise ValueError("Лише адміністратори можуть створювати поверхи.")
+
+        try:
+            dormitory = Dormitory.objects.get(id=dormitory_id)
+        except Dormitory.DoesNotExist:
+            raise ValueError(f"Гуртожиток з id {dormitory_id} не знайдено.")
+
+        if Floor.objects.filter(dormitory=dormitory, number=number).exists():
+            raise ValueError(f"Поверх {number} вже існує у цьому гуртожитку.")
+
+        floor = Floor(dormitory=dormitory, number=number, map_file=map_file)
+        floor.save()
+        return floor
+
+    def delete_floor(self, user, floor_id: int):
+        """Видаляє поверх.
+
+        Args:
+            user: Користувач.
+            floor_id: ID поверху.
+
+        Raises:
+            ValueError: Якщо поверх містить кімнати.
+        """
+        if not user.is_staff and getattr(user, "role", None) != "ADMIN":
+            raise ValueError("Лише адміністратори можуть видаляти поверхи.")
+
+        try:
+            floor = Floor.objects.get(id=floor_id)
+        except Floor.DoesNotExist:
+            raise ValueError(f"Поверх з id {floor_id} не знайдено.")
+
+        if floor.rooms.exists():
+            raise ValueError("Неможливо видалити поверх, оскільки на ньому існують кімнати.")
+
+        floor.delete()
+
     def block_room(self, user, room_id) -> Room:
         """Блокує кімнату, скасовуючи всі активні події та бронювання її ресурсів.
 

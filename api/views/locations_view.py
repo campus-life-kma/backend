@@ -4,6 +4,7 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.parsers import MultiPartParser, FormParser
 
 from api.models import Floor
 from api.permissions import AdminPermission
@@ -24,6 +25,7 @@ class FloorsView(APIView):
     """Ендпоінт для отримання списку поверхів конкретного гуртожитку."""
 
     permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
 
     @extend_schema(
         tags=["Локації"],
@@ -71,18 +73,54 @@ class FloorsView(APIView):
         try:
             floors = service.get_floors_by_dormitory_id(dormitory_id)
 
-            serializer = FloorListSerializer(floors, many=True)
+            serializer = FloorListSerializer(floors, many=True, context={"request": request})
 
             return Response(serializer.data)
 
         except ValueError as e:
             return Response({"detail": str(e)}, status=status.HTTP_404_NOT_FOUND)
 
+    @extend_schema(
+        tags=["Локації"],
+        summary="Створення нового поверху",
+        description="Створює новий поверх. Приймає номер поверху та SVG мапу.",
+        request={
+            "multipart/form-data": {
+                "type": "object",
+                "properties": {
+                    "number": {"type": "integer"},
+                    "map_file": {"type": "string", "format": "binary"},
+                },
+                "required": ["number", "map_file"],
+            }
+        },
+        responses={
+            201: FloorListSerializer,
+            400: OpenApiResponse(description="Помилка валідації або поверх вже існує."),
+        },
+    )
+    def post(self, request, dormitory_id):
+        try:
+            number = int(request.data.get("number"))
+            map_file = request.data.get("map_file")
+            if not map_file:
+                return Response({"detail": "map_file обов'язковий."}, status=status.HTTP_400_BAD_REQUEST)
+
+            service = LocationsService()
+            floor = service.create_floor(request.user, dormitory_id, number, map_file)
+            serializer = FloorListSerializer(floor, context={"request": request})
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        except ValueError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
 
 class FloorMapDataView(APIView):
     """Ендпоінт для отримання повної мапи поверху з кімнатами та подіями."""
 
     permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
 
     @extend_schema(
         tags=["Локації"],
@@ -603,3 +641,26 @@ class ResourceDetailView(APIView):
             return Response({"detail": str(exc)}, status=status.HTTP_404_NOT_FOUND)
 
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class FloorDetailView(APIView):
+    """Видалення поверху."""
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=["Локації"],
+        summary="Видалення поверху",
+        description="Видаляє поверх. Якщо на поверсі існують кімнати, видалення заборонено.",
+        responses={
+            204: OpenApiResponse(description="Успішно видалено."),
+            400: OpenApiResponse(description="Неможливо видалити поверх (існують кімнати)."),
+        },
+    )
+    def delete(self, request, floor_id):
+        try:
+            service = LocationsService()
+            service.delete_floor(request.user, floor_id)
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except ValueError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)

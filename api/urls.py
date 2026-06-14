@@ -33,6 +33,7 @@ from api.views.dictionaries_view import (
 )
 from api.views.locations_view import (
     FloorsView,
+    FloorDetailView,
     FloorMapDataView,
     RoomBlockView,
     RoomCreateView,
@@ -63,6 +64,7 @@ urlpatterns = [
     path("auth/me/", AuthMeView.as_view(), name="auth-me"),
     # Локації (Поверхи та кімнати)
     path("floors/<int:dormitory_id>/", FloorsView.as_view(), name="floors"),
+    path("floors/detail/<int:floor_id>/", FloorDetailView.as_view(), name="floor-detail"),
     path("floors/<int:floor_id>/map-data/", FloorMapDataView.as_view(), name="floor-map-data"),
     path("floors/<int:floor_id>/rooms/", RoomCreateView.as_view(), name="room-create"),
     path("rooms/<int:room_id>/block/", RoomBlockView.as_view(), name="room-block"),
