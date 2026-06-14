@@ -148,14 +148,19 @@ class SocialsService:
     def get_visible_events_queryset(self, user, now):
         base_qs = SocialEvent.objects.filter(status__status="ACTIVE", end_time__gte=now)
 
-        if user.is_admin:
+        if user.is_admin or user.is_moderator:
             return base_qs
 
         user_faculty_id = self.get_faculty_id(user)
 
-        return base_qs.filter(Q(is_faculty_only=False) | Q(creator__major__faculty_id=user_faculty_id)).filter(
+        base_qs = base_qs.filter(Q(is_faculty_only=False) | Q(creator__major__faculty_id=user_faculty_id)).filter(
             Q(is_major_only=False) | Q(creator__major_id=user.major_id)
         )
+
+        base_qs = base_qs.annotate(num_participants=Count("participants"))
+
+        capacity_condition = Q(max_person__isnull=True) | Q(num_participants__lt=F("max_person")) | Q(participants=user)
+        return base_qs.filter(capacity_condition)
 
     def resolve_feed_items(self, rows):
         event_ids = [row["item_id"] for row in rows if row["item_type"] == "event"]
@@ -317,7 +322,7 @@ class SocialsService:
         except SocialSharingRequest.DoesNotExist as exc:
             raise SocialNotFoundError("Запит на шеринг з таким id не знайдено.") from exc
 
-        if sharing_request.creator_id != user.id:
+        if sharing_request.creator.id != user.id:
             raise SocialPermissionDeniedError("Тільки автор запиту може позначити його як виконаний.")
 
         sharing_request.status = self.get_status("COMPLETED")
@@ -385,11 +390,22 @@ class SocialsService:
             raise SocialStatusNotFoundError(f"Статус {status_name} не знайдено в базі даних.") from exc
 
     def can_view_event(self, user, event):
+        if user.is_admin or user.is_moderator:
+            return True
+
         if event.is_faculty_only and self.get_faculty_id(user) != self.get_faculty_id(event.creator):
             return False
 
         if event.is_major_only and user.major_id != event.creator.major_id:
             return False
+
+        if event.max_person is not None:
+            participants_count = event.participants.count()
+            if participants_count >= event.max_person:
+                is_participant = event.participants.filter(id=user.id).exists()
+                is_creator = event.creator_id == user.id
+                if not is_participant and not is_creator:
+                    return False
 
         return True
 
@@ -453,13 +469,22 @@ class SocialsService:
             "creator", "creator__major", "creator__major__faculty", "room", "room__floor", "floor", "status"
         )
 
-        if request_user.is_admin:
+        if request_user.is_admin or request_user.is_moderator:
             visible_events = base_events_qs
         else:
             user_faculty_id = self.get_faculty_id(request_user)
             visible_events = base_events_qs.filter(
                 Q(is_faculty_only=False) | Q(creator__major__faculty_id=user_faculty_id)
             ).filter(Q(is_major_only=False) | Q(creator__major_id=request_user.major_id))
+
+            visible_events = visible_events.annotate(num_participants=Count("participants"))
+            capacity_condition = (
+                Q(max_person__isnull=True)
+                | Q(num_participants__lt=F("max_person"))
+                | Q(participants=request_user)
+                | Q(creator=request_user)
+            )
+            visible_events = visible_events.filter(capacity_condition)
 
         created_events = visible_events.filter(creator=target_user).order_by("-start_time")
 
@@ -483,7 +508,7 @@ class SocialsService:
         except SocialEvent.DoesNotExist as exc:
             raise SocialNotFoundError("Подію з таким id не знайдено.") from exc
 
-        if event.creator_id != user.id:
+        if event.creator.id != user.id:
             raise SocialPermissionDeniedError("Лише автор може редагувати цю подію.")
 
         if event.status.status != "ACTIVE":
@@ -508,7 +533,7 @@ class SocialsService:
         except SocialSharingRequest.DoesNotExist as exc:
             raise SocialNotFoundError("Запит на шеринг з таким id не знайдено.") from exc
 
-        if sharing_request.creator_id != user.id:
+        if sharing_request.creator.id != user.id:
             raise SocialPermissionDeniedError("Лише автор може редагувати цей запит.")
 
         if sharing_request.status.status != "ACTIVE":

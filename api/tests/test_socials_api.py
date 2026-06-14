@@ -438,3 +438,69 @@ class SocialsApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         request.refresh_from_db()
         self.assertNotEqual(request.title, "Чужий поверх")
+
+    def test_feed_hides_full_events_unless_user_is_participant(self):
+        """Test that social events at maximum capacity are hidden from the feed unless the user is participating."""
+        full_event = self.create_event(creator=self.other_user, max_person=1)
+        full_event.participants.add(self.other_user)
+
+        # 1. Other user is participant -> should see it
+        self.client.force_authenticate(user=self.other_user)
+        response = self.client.get(reverse("feed", kwargs={"page": 1}))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        event_ids = [item["id"] for item in response.data["results"] if item["type"] == "event"]
+        self.assertIn(full_event.id, event_ids)
+
+        # 2. Self user is not participant -> should NOT see it
+        self.client.force_authenticate(user=self.user)
+        response = self.client.get(reverse("feed", kwargs={"page": 1}))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        event_ids = [item["id"] for item in response.data["results"] if item["type"] == "event"]
+        self.assertNotIn(full_event.id, event_ids)
+
+    def test_admin_moderator_bypass_capacity_limit_in_feed(self):
+        """Test that administrators and moderators can see full events in their feed."""
+        full_event = self.create_event(creator=self.other_user, max_person=1)
+        full_event.participants.add(self.other_user)
+
+        # Admin
+        self.client.force_authenticate(user=self.admin)
+        response = self.client.get(reverse("feed", kwargs={"page": 1}))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        event_ids = [item["id"] for item in response.data["results"] if item["type"] == "event"]
+        self.assertIn(full_event.id, event_ids)
+
+        # Moderator
+        self.client.force_authenticate(user=self.moderator)
+        response = self.client.get(reverse("feed", kwargs={"page": 1}))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        event_ids = [item["id"] for item in response.data["results"] if item["type"] == "event"]
+        self.assertIn(full_event.id, event_ids)
+
+    def test_admin_moderator_can_view_full_event_details(self):
+        """Test that administrators, moderators, and participants can retrieve details of a full event.
+
+        Other regular users who are not participants should be forbidden.
+        """
+        full_event = self.create_event(creator=self.other_user, max_person=1)
+        full_event.participants.add(self.other_user)
+
+        # 1. Other user (participant) -> 200 OK
+        self.client.force_authenticate(user=self.other_user)
+        response = self.client.get(reverse("event-detail", kwargs={"event_id": full_event.id}))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # 2. Self user (non-participant, non-creator) -> 403 Forbidden
+        self.client.force_authenticate(user=self.user)
+        response = self.client.get(reverse("event-detail", kwargs={"event_id": full_event.id}))
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        # 3. Admin -> 200 OK
+        self.client.force_authenticate(user=self.admin)
+        response = self.client.get(reverse("event-detail", kwargs={"event_id": full_event.id}))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # 4. Moderator -> 200 OK
+        self.client.force_authenticate(user=self.moderator)
+        response = self.client.get(reverse("event-detail", kwargs={"event_id": full_event.id}))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
