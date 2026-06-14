@@ -239,6 +239,7 @@ class AnnouncementRecipientSerializer(serializers.ModelSerializer):
             "id",
             "display_name",
             "email",
+            "photo",
             "role_name",
             "floor_id",
             "floor_number",
