@@ -296,9 +296,16 @@ class LocationsService:
         if resource_type:
             self._validate_resource_type_for_room(resource.room, resource_type)
 
+        was_blocked = resource.is_blocked
         for key, value in data.items():
             setattr(resource, key, value)
-        resource.save()
+        
+        with transaction.atomic():
+            resource.save()
+            if not was_blocked and resource.is_blocked:
+                from api.services.bookings_service import BookingsService
+                BookingsService().cancel_active_resource_bookings(resource, actor=user)
+
         return resource
 
     def delete_resource(self, user, resource_id):
@@ -310,7 +317,10 @@ class LocationsService:
         """
         try:
             resource = Resource.objects.get(id=resource_id)
-            resource.delete()
+            with transaction.atomic():
+                from api.services.bookings_service import BookingsService
+                BookingsService().cancel_active_resource_bookings(resource, actor=user)
+                resource.delete()
         except Resource.DoesNotExist:
             raise ValueError("Ресурс не знайдено!")
 

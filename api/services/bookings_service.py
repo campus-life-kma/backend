@@ -347,7 +347,7 @@ class BookingsService:
             end_time__gt=timezone.now(),
         ).select_related("user")
 
-        users_to_notify = list({b.user for b in bookings_to_cancel if actor and b.user.id != actor.id})
+        users_to_notify = list({b.user for b in bookings_to_cancel})
 
         update_data = {"status": cancelled_status}
         if actor:
