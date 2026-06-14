@@ -436,3 +436,104 @@ class RoomCreateApiTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class FloorMapUpdateApiTests(APITestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.override = override_settings(MEDIA_ROOT=self.temp_dir)
+        self.override.enable()
+
+        self.dormitory = Dormitory.objects.create(name="Test dormitory")
+        self.living_type, _ = RoomType.objects.get_or_create(type="LIVING")
+        self.admin_role, _ = Role.objects.get_or_create(name="ADMIN")
+        self.resident_role, _ = Role.objects.get_or_create(name="RESIDENT")
+
+        svg = (
+            '<svg xmlns="http://www.w3.org/2000/svg">'
+            '<g id="rooms">'
+            '<path id="room_1" d="M0 0H10V10H0Z" />'
+            '<path id="room_2" d="M20 0H30V10H20Z" />'
+            "</g>"
+            "</svg>"
+        )
+        self.floor = Floor.objects.create(
+            dormitory=self.dormitory,
+            number=1,
+            map_file=SimpleUploadedFile("old-map.svg", svg.encode("utf-8"), content_type="image/svg+xml"),
+        )
+        self.room = Room.objects.create(
+            floor=self.floor,
+            room_type=self.living_type,
+            name="101",
+            max_person=2,
+            svg_element_id="room_1",
+        )
+        self.admin = User.objects.create(
+            email="admin-floor-map@ukma.edu.ua", full_name="Admin", role=self.admin_role, is_activated=True
+        )
+        self.resident = User.objects.create(
+            email="resident-floor-map@ukma.edu.ua", full_name="Resident", role=self.resident_role, is_activated=True
+        )
+
+    def tearDown(self):
+        self.override.disable()
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_admin_can_update_floor_map_when_existing_room_ids_are_preserved(self):
+        self.client.force_authenticate(user=self.admin)
+        new_svg = (
+            '<svg xmlns="http://www.w3.org/2000/svg">'
+            '<g id="rooms">'
+            '<path id="room_1" d="M0 0H20V20H0Z" />'
+            '<path id="room_3" d="M30 0H50V20H30Z" />'
+            "</g>"
+            "</svg>"
+        )
+
+        response = self.client.patch(
+            reverse("floor-detail", args=[self.floor.id]),
+            {"map_file": SimpleUploadedFile("new-map.svg", new_svg.encode("utf-8"), content_type="image/svg+xml")},
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.floor.refresh_from_db()
+        self.assertIn("new-map", self.floor.map_file.name)
+        self.assertTrue(Room.objects.filter(id=self.room.id, svg_element_id="room_1").exists())
+
+    def test_admin_cannot_update_floor_map_when_existing_room_id_is_missing(self):
+        self.client.force_authenticate(user=self.admin)
+        new_svg = (
+            '<svg xmlns="http://www.w3.org/2000/svg">'
+            '<g id="rooms">'
+            '<path id="room_2" d="M20 0H30V10H20Z" />'
+            "</g>"
+            "</svg>"
+        )
+
+        response = self.client.patch(
+            reverse("floor-detail", args=[self.floor.id]),
+            {
+                "map_file": SimpleUploadedFile(
+                    "missing-room.svg", new_svg.encode("utf-8"), content_type="image/svg+xml"
+                )
+            },
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Нова SVG-мапа не містить id для існуючих кімнат", response.data["detail"])
+        self.assertIn("101 (room_1)", response.data["detail"])
+
+    def test_resident_cannot_update_floor_map(self):
+        self.client.force_authenticate(user=self.resident)
+        new_svg = '<svg xmlns="http://www.w3.org/2000/svg"><g id="rooms"></g></svg>'
+
+        response = self.client.patch(
+            reverse("floor-detail", args=[self.floor.id]),
+            {"map_file": SimpleUploadedFile("new-map.svg", new_svg.encode("utf-8"), content_type="image/svg+xml")},
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)

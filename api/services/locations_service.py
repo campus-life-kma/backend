@@ -44,7 +44,7 @@ class LocationsService:
         Raises:
             ValueError: Якщо гуртожиток не знайдено або поверх вже існує.
         """
-        if not user.is_staff and getattr(user, "role", None) != "ADMIN":
+        if not user.is_admin:
             raise ValueError("Лише адміністратори можуть створювати поверхи.")
 
         try:
@@ -69,7 +69,7 @@ class LocationsService:
         Raises:
             ValueError: Якщо поверх містить кімнати.
         """
-        if not user.is_staff and getattr(user, "role", None) != "ADMIN":
+        if not user.is_admin:
             raise ValueError("Лише адміністратори можуть видаляти поверхи.")
 
         try:
@@ -416,6 +416,25 @@ class LocationsService:
                 return True
         return False
 
+    def _extract_svg_room_ids(self, svg_file) -> set[str]:
+        try:
+            svg_file.seek(0)
+            root = ET.parse(svg_file).getroot()
+            svg_file.seek(0)
+        except (OSError, ET.ParseError, ValueError) as exc:
+            raise ValueError("Не вдалося прочитати SVG-мапу. Перевірте, що файл має коректний SVG-формат.") from exc
+
+        rooms_group = None
+        for element in root.iter():
+            if element.attrib.get("id") == "rooms":
+                rooms_group = element
+                break
+
+        if rooms_group is None:
+            raise ValueError("У SVG-мапі не знайдено групу кімнат з id=\"rooms\".")
+
+        return {element.attrib["id"] for element in rooms_group.iter() if element.attrib.get("id")}
+
     def _send_system_announcement(self, actor, target_users, title, message):
         """Створює внутрішнє оголошення через AnnouncementsService."""
         try:
@@ -444,3 +463,35 @@ class LocationsService:
             raise ValueError("Цей тип ресурсу не підходить для кухні.")
         if room.room_type.type == "LAUNDRY" and resource_type.type in kitchen_resources:
             raise ValueError("Цей тип ресурсу не підходить для пральні.")
+
+    def update_floor_map(self, user, floor_id: int, new_map_file):
+        """Оновлює SVG мапу існуючого поверху."""
+        if not user.is_admin:
+            raise ValueError("Тільки адміністратор може редагувати мапи поверхів.")
+
+        try:
+            floor = Floor.objects.prefetch_related("rooms").get(id=floor_id)
+        except Floor.DoesNotExist:
+            raise ValueError(f"Поверх з id {floor_id} не знайдено.")
+
+        existing_rooms = list(floor.rooms.all())
+        existing_svg_ids = {room.svg_element_id for room in existing_rooms if room.svg_element_id}
+        if existing_svg_ids:
+            new_svg_ids = self._extract_svg_room_ids(new_map_file)
+            missing_ids = sorted(existing_svg_ids - new_svg_ids)
+
+            if missing_ids:
+                missing_rooms = [
+                    f"{room.name} ({room.svg_element_id})"
+                    for room in existing_rooms
+                    if room.svg_element_id in missing_ids
+                ]
+                raise ValueError(
+                    "Нова SVG-мапа не містить id для існуючих кімнат: "
+                    f"{', '.join(missing_rooms)}. Через це ці кімнати перестали б бути клікабельними. "
+                    "Збережіть ці id у новому SVG або спочатку вилучіть відповідні кімнати з гуртожитку."
+                )
+
+        floor.map_file = new_map_file
+        floor.save(update_fields=["map_file"])
+        return floor

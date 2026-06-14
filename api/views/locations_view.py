@@ -644,9 +644,80 @@ class ResourceDetailView(APIView):
 
 
 class FloorDetailView(APIView):
-    """Видалення поверху."""
+    """Детальні операції з поверхом."""
 
     permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    @extend_schema(
+        tags=["Локації"],
+        summary="Оновлення SVG-мапи поверху",
+        description=(
+            "Замінює SVG-мапу існуючого поверху без видалення кімнат. "
+            "Нова мапа повинна містити всі id кімнат, які вже прив'язані до цього поверху."
+        ),
+        request={
+            "multipart/form-data": {
+                "type": "object",
+                "properties": {
+                    "map_file": {
+                        "type": "string",
+                        "format": "binary",
+                        "description": "Новий SVG-файл мапи поверху.",
+                    }
+                },
+                "required": ["map_file"],
+            }
+        },
+        responses={
+            200: OpenApiResponse(
+                response=FloorListSerializer,
+                description="Мапу поверху успішно оновлено.",
+                examples=[
+                    OpenApiExample(
+                        "Оновлена мапа поверху",
+                        value={"id": 5, "number": 9, "map_file": "/media/maps/floor_9_new.svg"},
+                    )
+                ],
+            ),
+            400: OpenApiResponse(
+                description="Файл не передано, SVG некоректний або у новій мапі бракує id існуючих кімнат.",
+                examples=[
+                    OpenApiExample(
+                        "Відсутній id кімнати",
+                        value={
+                            "detail": (
+                                "Нова SVG-мапа не містить id для існуючих кімнат: 901 (room_901). "
+                                "Через це ці кімнати перестали б бути клікабельними. "
+                                "Збережіть ці id у новому SVG або спочатку вилучіть відповідні кімнати з гуртожитку."
+                            )
+                        },
+                    )
+                ],
+            ),
+            401: OpenApiResponse(description="Не авторизовано."),
+            403: OpenApiResponse(description="Оновлювати мапу поверху може лише адміністратор."),
+        },
+    )
+    def patch(self, request, floor_id):
+        if not request.user.is_admin:
+            return Response(
+                {"detail": "Лише адміністратор може оновлювати мапу поверху."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        map_file = request.FILES.get("map_file")
+        if not map_file:
+            return Response({"detail": "Завантажте SVG-файл мапи поверху."}, status=status.HTTP_400_BAD_REQUEST)
+        if not map_file.name.lower().endswith(".svg"):
+            return Response({"detail": "Мапа поверху має бути SVG-файлом."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            service = LocationsService()
+            floor = service.update_floor_map(request.user, floor_id, map_file)
+            serializer = FloorListSerializer(floor, context={"request": request})
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except ValueError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     @extend_schema(
         tags=["Локації"],
