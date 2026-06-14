@@ -26,8 +26,19 @@ from api.views.dictionaries_view import (
     DormitoryListView,
     FloorListView,
     RoomListView,
+    RoomTypeListView,
+    ResourceTypeListView,
 )
-from api.views.locations_view import FloorsView, FloorMapDataView, RoomBlockView, RoomUnblockView
+from api.views.locations_view import (
+    FloorsView,
+    FloorMapDataView,
+    RoomBlockView,
+    RoomCreateView,
+    RoomUnblockView,
+    RoomUpdateView,
+    ResourceCreateView,
+    ResourceDetailView,
+)
 from api.views.presence_view import PresenceCheckInView, PresenceGoHomeView, PresenceMeView
 from api.views.socials_view import (
     FeedView,
@@ -40,6 +51,7 @@ from api.views.socials_view import (
     UserSocialProfileView,
     SocialEventDetailView,
 )
+from api.views.statistics_view import StatisticsSummaryView
 from api.views.user_view import UserDetailView
 
 urlpatterns = [
@@ -48,6 +60,7 @@ urlpatterns = [
     path("auth/me/", AuthMeView.as_view(), name="auth-me"),
     path("floors/<int:dormitory_id>/", FloorsView.as_view(), name="floors"),
     path("floors/<int:floor_id>/map-data/", FloorMapDataView.as_view(), name="floor-map-data"),
+    path("floors/<int:floor_id>/rooms/", RoomCreateView.as_view(), name="room-create"),
     path("rooms/<int:room_id>/block/", RoomBlockView.as_view(), name="room-block"),
     path("rooms/<int:room_id>/unblock/", RoomUnblockView.as_view(), name="room-unblock"),
     path("presence/me/", PresenceMeView.as_view(), name="presence-me"),
@@ -67,6 +80,7 @@ urlpatterns = [
     path("announcements/recipients/", AnnouncementRecipientsView.as_view(), name="announcement-recipients"),
     path("announcements/<int:announcement_id>/read/", AnnouncementReadView.as_view(), name="announcement-read"),
     path("announcements/", AnnouncementCreateView.as_view(), name="announcement-create"),
+    path("statistics/summary/", StatisticsSummaryView.as_view(), name="statistics-summary"),
     path("resources/<int:resource_id>/schedule/", ResourceScheduleView.as_view(), name="resource-schedule"),
     path("resources/<int:resource_id>/block/", ResourceBlockView.as_view(), name="resource-block"),
     path("resources/<int:resource_id>/unblock/", ResourceUnblockView.as_view(), name="resource-unblock"),
@@ -84,6 +98,11 @@ urlpatterns = [
     path("dormitories/", DormitoryListView.as_view(), name="dormitory-list"),
     path("floors/", FloorListView.as_view(), name="floor-list"),
     path("rooms/", RoomListView.as_view(), name="room-list"),
+    path("room-types/", RoomTypeListView.as_view(), name="room-type-list"),
+    path("resource-types/", ResourceTypeListView.as_view(), name="resource-type-list"),
+    path("rooms/<int:room_id>/", RoomUpdateView.as_view(), name="room-update"),
+    path("rooms/<int:room_id>/resources/", ResourceCreateView.as_view(), name="resource-create"),
+    path("resources/<int:resource_id>/", ResourceDetailView.as_view(), name="resource-detail"),
 ]
 
 if settings.DEBUG:

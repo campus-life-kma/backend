@@ -30,6 +30,21 @@ class UserBaseSerializer(serializers.ModelSerializer):
 
 class UserFullSerializer(serializers.ModelSerializer):
     display_name = serializers.SerializerMethodField()
+    role_id = serializers.IntegerField(
+        source="role.id", read_only=True, allow_null=True, help_text="ID ролі користувача"
+    )
+    room_id = serializers.IntegerField(
+        source="room.id", read_only=True, allow_null=True, help_text="ID кімнати проживання"
+    )
+    floor_id = serializers.IntegerField(
+        source="room.floor.id", read_only=True, allow_null=True, help_text="ID поверху проживання"
+    )
+    major_id = serializers.IntegerField(
+        source="major.id", read_only=True, allow_null=True, help_text="ID спеціальності"
+    )
+    faculty_id = serializers.IntegerField(
+        source="faculty.id", read_only=True, allow_null=True, help_text="ID факультету (для викладачів)"
+    )
 
     role_name = serializers.CharField(
         source="role.name", read_only=True, help_text="Системна роль, яка визначає рівень доступу до функцій платформи"
@@ -45,10 +60,8 @@ class UserFullSerializer(serializers.ModelSerializer):
         source="room.name", read_only=True, help_text="Номер або назва кімнати (наприклад, '314', '41/3')"
     )
 
-    faculty_name = serializers.CharField(
-        source="major.faculty.name",
-        read_only=True,
-        help_text="Повна назва факультету (наприклад, Факультет інформатики)",
+    faculty_name = serializers.SerializerMethodField(
+        help_text="Повна назва факультету (наприклад, Факультет інформатики)"
     )
     major_name = serializers.CharField(
         source="major.name",
@@ -60,15 +73,22 @@ class UserFullSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             "id",
+            "role_id",
             "role_name",
             "display_name",
             "email",
             "photo",
+            "room_id",
+            "floor_id",
+            "major_id",
+            "faculty_id",
             "dormitory_name",
             "floor_number",
             "room_name",
             "faculty_name",
             "major_name",
+            "position",
+            "education_level",
             "year",
             "status",
             "bio",
@@ -80,11 +100,25 @@ class UserFullSerializer(serializers.ModelSerializer):
             return obj.full_name
         return "Новий мешканець"
 
+    @extend_schema_field(serializers.CharField)
+    def get_faculty_name(self, obj):
+        if obj.position == User.Position.TEACHER and obj.faculty:
+            return obj.faculty.name
+        if obj.position == User.Position.STUDENT and obj.major:
+            return obj.major.faculty.name
+        return None
+
 
 class UserUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ["full_name", "photo", "status", "bio"]
+
+
+class ModeratorUserUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ["status", "bio"]
 
 
 class AdminUserUpdateSerializer(serializers.ModelSerializer):
@@ -97,10 +131,58 @@ class AdminUserUpdateSerializer(serializers.ModelSerializer):
             "photo",
             "room",
             "major",
+            "faculty",
+            "position",
+            "education_level",
             "year",
             "status",
             "bio",
         ]
+
+        extra_kwargs = {
+            "education_level": {
+                "help_text": "Рівень навчання: BACHELOR, MASTER або PHD.",
+                "error_messages": {
+                    "invalid_choice": "Оберіть коректний рівень навчання: BACHELOR, MASTER або PHD.",
+                },
+            },
+            "year": {
+                "help_text": "Курс або рік навчання. Для бакалавра: 1-4, для магістра: 1-2, для аспіранта: 1-4.",
+                "error_messages": {
+                    "invalid": "Курс або рік навчання має бути числом.",
+                },
+            },
+        }
+
+    def validate(self, attrs):
+        position = attrs.get("position", getattr(self.instance, "position", User.Position.STUDENT))
+
+        if position != User.Position.STUDENT:
+            attrs["education_level"] = None
+            attrs["year"] = None
+            attrs["major"] = None
+
+            if position == User.Position.EMPLOYEE:
+                attrs["faculty"] = None
+
+            return attrs
+
+        if "faculty" in attrs or attrs.get("position") == User.Position.STUDENT:
+            attrs["faculty"] = None
+
+        education_level = attrs.get("education_level", getattr(self.instance, "education_level", None))
+        year = attrs.get("year", getattr(self.instance, "year", None))
+
+        if year is None:
+            return attrs
+
+        if education_level == User.EducationLevel.MASTER and year not in (1, 2):
+            raise serializers.ValidationError({"year": ["Для магістратури можна вказати лише 1 або 2 курс."]})
+
+        if education_level in (User.EducationLevel.BACHELOR, User.EducationLevel.PHD) and year not in (1, 2, 3, 4):
+            raise serializers.ValidationError({"year": ["Для цього рівня навчання можна вказати значення від 1 до 4."]})
+
+        return attrs
 
 
 class UserMapSerializer(serializers.ModelSerializer):
@@ -126,9 +208,7 @@ class AnnouncementRecipientSerializer(serializers.ModelSerializer):
     )
     room_id = serializers.IntegerField(source="room.id", read_only=True, allow_null=True, help_text="ID кімнати")
     room_name = serializers.CharField(source="room.name", read_only=True, allow_null=True, help_text="Назва кімнати")
-    faculty_name = serializers.CharField(
-        source="major.faculty.name", read_only=True, allow_null=True, help_text="Назва факультету"
-    )
+    faculty_name = serializers.SerializerMethodField(help_text="Назва факультету")
     major_name = serializers.CharField(
         source="major.name", read_only=True, allow_null=True, help_text="Назва спеціальності"
     )
@@ -154,3 +234,11 @@ class AnnouncementRecipientSerializer(serializers.ModelSerializer):
         if obj.full_name:
             return obj.full_name
         return obj.email
+
+    @extend_schema_field(serializers.CharField)
+    def get_faculty_name(self, obj):
+        if obj.position == User.Position.TEACHER and obj.faculty:
+            return obj.faculty.name
+        if obj.position == User.Position.STUDENT and obj.major:
+            return obj.major.faculty.name
+        return None

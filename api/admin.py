@@ -37,7 +37,7 @@ class DormitoryAdmin(admin.ModelAdmin):
 
 @admin.register(Floor)
 class FloorAdmin(admin.ModelAdmin):
-    list_display = ("dormitory", "number")
+    list_display = ("dormitory", "number", "notice")
     list_filter = ("dormitory",)
 
 

@@ -39,7 +39,7 @@ services:
       - ../frontend:/app
       - /app/node_modules
     ports:
-      - "5175:5173"
+      - "5175:5175"
     depends_on:
       - backend
 

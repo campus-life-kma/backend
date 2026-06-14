@@ -11,6 +11,11 @@ from api.serializers.locations_serializer import (
     FloorListSerializer,
     FloorMapDataSerializer,
     RoomBlockSerializer,
+    RoomCreateSerializer,
+    RoomMapSerializer,
+    RoomUpdateSerializer,
+    ResourceCreateUpdateSerializer,
+    ResourceSerializer,
 )
 from api.services.locations_service import LocationsService
 
@@ -93,6 +98,7 @@ class FloorMapDataView(APIView):
                             "number": 1,
                             "map_file": "/media/maps/floor_1.svg",
                             "dormitory_name": "Гуртожиток №1",
+                            "notice": "",
                             "rooms": [
                                 {
                                     "id": 101,
@@ -264,3 +270,227 @@ class RoomUnblockView(APIView):
 
         serializer = RoomBlockSerializer(room, context={"request": request})
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class RoomUpdateView(APIView):
+    permission_classes = [AdminPermission]
+
+    @extend_schema(
+        tags=["Локації"],
+        summary="Редагування кімнати (лише адміністратор)",
+        request=RoomUpdateSerializer,
+        responses={200: RoomBlockSerializer},
+    )
+    def patch(self, request, room_id):
+        serializer = RoomUpdateSerializer(data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+
+        service = LocationsService()
+        try:
+            room = service.update_room(request.user, room_id, serializer.validated_data)
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        response_serializer = RoomBlockSerializer(room, context={"request": request})
+        return Response(response_serializer.data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        tags=["Локації"],
+        summary="Вилучення кімнати з активної мапи гуртожитку (лише адміністратор)",
+        description=(
+            "Видаляє кімнату з бази Campus Life, після чого відповідна зона SVG-мапи "
+            "знову відображатиметься як така, що не належить гуртожитку. "
+            "Кімнату можна вилучити лише після блокування."
+        ),
+        responses={
+            204: OpenApiResponse(description="Кімнату вилучено з активної мапи гуртожитку."),
+            400: OpenApiResponse(
+                description="Кімнату не можна вилучити через поточний стан.",
+                response=dict,
+                examples=[
+                    OpenApiExample(
+                        "Потрібне блокування",
+                        value={"detail": "Спочатку заблокуйте кімнату, а потім вилучайте її з гуртожитку."},
+                    ),
+                    OpenApiExample(
+                        "Є мешканці",
+                        value={"detail": "Не можна вилучити кімнату, доки до неї прикріплені мешканці."},
+                    ),
+                ],
+            ),
+            403: OpenApiResponse(description="Тільки адміністратор може вилучати кімнати з гуртожитку."),
+            404: OpenApiResponse(
+                description="Кімнату не знайдено.",
+                response=dict,
+                examples=[OpenApiExample("Кімната відсутня", value={"detail": "Кімнату з таким id не знайдено!"})],
+            ),
+        },
+    )
+    def delete(self, request, room_id):
+        service = LocationsService()
+        try:
+            service.delete_room(request.user, room_id)
+        except ValueError as exc:
+            response_status = status.HTTP_404_NOT_FOUND
+            if str(exc) != "Кімнату з таким id не знайдено!":
+                response_status = status.HTTP_400_BAD_REQUEST
+            return Response({"detail": str(exc)}, status=response_status)
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class RoomCreateView(APIView):
+    permission_classes = [AdminPermission]
+
+    @extend_schema(
+        tags=["Локації"],
+        summary="Підключення неактивної кімнати на мапі (лише адміністратор)",
+        description=(
+            "Створює кімнату на конкретному поверсі для SVG-зони, яка вже є на мапі, "
+            "але ще не прив'язана до кімнати в базі. Після створення зона перестає "
+            "бути сірою та стає доступною на мапі."
+        ),
+        request=RoomCreateSerializer,
+        parameters=[
+            OpenApiParameter(
+                name="floor_id",
+                type=OpenApiTypes.INT,
+                location="path",
+                required=True,
+                description="ID поверху, на SVG-мапі якого є неактивна кімната.",
+            )
+        ],
+        responses={
+            201: OpenApiResponse(
+                response=RoomMapSerializer,
+                description="Кімнату успішно додано до гуртожитку.",
+                examples=[
+                    OpenApiExample(
+                        "Створена кімната",
+                        value={
+                            "id": 201,
+                            "name": "Кімната 1/1",
+                            "room_type": "LIVING",
+                            "max_person": 2,
+                            "is_blocked": False,
+                            "svg_element_id": "room_1",
+                            "resources": [],
+                            "current_users": [],
+                            "active_events": [],
+                        },
+                    )
+                ],
+            ),
+            400: OpenApiResponse(
+                description="Некоректні дані або SVG-зона вже використовується.",
+                response=dict,
+                examples=[
+                    OpenApiExample(
+                        "Зона вже активна",
+                        value={"detail": "Ця зона мапи вже прив'язана до кімнати."},
+                    ),
+                    OpenApiExample(
+                        "Зони немає в SVG",
+                        value={"detail": "У SVG-мапі цього поверху немає такої кімнати."},
+                    ),
+                ],
+            ),
+            403: OpenApiResponse(description="Тільки адміністратор може додавати кімнати на мапу."),
+            404: OpenApiResponse(
+                description="Поверх не знайдено.",
+                response=dict,
+                examples=[OpenApiExample("Поверх відсутній", value={"detail": "Поверх з таким id не знайдено!"})],
+            ),
+        },
+        examples=[
+            OpenApiExample(
+                "Додати кімнату з SVG",
+                value={
+                    "name": "Кімната 1/1",
+                    "room_type": 1,
+                    "max_person": 2,
+                    "is_blocked": False,
+                    "svg_element_id": "room_1",
+                },
+                request_only=True,
+            )
+        ],
+    )
+    def post(self, request, floor_id):
+        serializer = RoomCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        service = LocationsService()
+        try:
+            room = service.create_room(request.user, floor_id, serializer.validated_data)
+        except ValueError as exc:
+            response_status = status.HTTP_404_NOT_FOUND
+            if str(exc) != "Поверх з таким id не знайдено!":
+                response_status = status.HTTP_400_BAD_REQUEST
+            return Response({"detail": str(exc)}, status=response_status)
+
+        response_serializer = RoomMapSerializer(room, context={"request": request})
+        return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+
+
+class ResourceCreateView(APIView):
+    permission_classes = [AdminPermission]
+
+    @extend_schema(
+        tags=["Локації"],
+        summary="Створення ресурсу в кімнаті (лише адміністратор)",
+        request=ResourceCreateUpdateSerializer,
+        responses={201: ResourceSerializer},
+    )
+    def post(self, request, room_id):
+        serializer = ResourceCreateUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        service = LocationsService()
+        try:
+            resource = service.create_resource(request.user, room_id, serializer.validated_data)
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        response_serializer = ResourceSerializer(resource, context={"request": request})
+        return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+
+
+class ResourceDetailView(APIView):
+    permission_classes = [AdminPermission]
+
+    @extend_schema(
+        tags=["Локації"],
+        summary="Оновлення ресурсу (лише адміністратор)",
+        request=ResourceCreateUpdateSerializer,
+        responses={200: ResourceSerializer},
+    )
+    def patch(self, request, resource_id):
+        serializer = ResourceCreateUpdateSerializer(data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+
+        service = LocationsService()
+        try:
+            resource = service.update_resource(request.user, resource_id, serializer.validated_data)
+        except ValueError as exc:
+            response_status = status.HTTP_404_NOT_FOUND
+            if str(exc) != "Ресурс не знайдено!":
+                response_status = status.HTTP_400_BAD_REQUEST
+            return Response({"detail": str(exc)}, status=response_status)
+
+        response_serializer = ResourceSerializer(resource, context={"request": request})
+        return Response(response_serializer.data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        tags=["Локації"],
+        summary="Видалення ресурсу (лише адміністратор)",
+        responses={204: None},
+    )
+    def delete(self, request, resource_id):
+        service = LocationsService()
+        try:
+            service.delete_resource(request.user, resource_id)
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_404_NOT_FOUND)
+
+        return Response(status=status.HTTP_204_NO_CONTENT)

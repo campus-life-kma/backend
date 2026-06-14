@@ -21,6 +21,11 @@ class Floor(models.Model):
         upload_to="maps/",
         help_text="Файл інтерактивної карти поверху (у форматі SVG), на якому відмальовуються кімнати",
     )
+    notice = models.TextField(
+        blank=True,
+        default="",
+        help_text="Коротке попередження для відображення на мапі цього поверху, якщо воно потрібне",
+    )
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=["dormitory", "number"], name="unique_floor_per_dormitory")]

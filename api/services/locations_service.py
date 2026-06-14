@@ -1,8 +1,10 @@
+import xml.etree.ElementTree as ET
+
 from django.db import transaction
 from django.db.models import QuerySet
 from django.utils import timezone
 
-from api.models import Floor, Room, SocialSharingStatus, TargetType, User
+from api.models import Floor, Room, Resource, SocialSharingStatus, TargetType, User
 from api.models.locations import Dormitory
 from api.services.announcements_service import AnnouncementError, AnnouncementsService
 from api.services.bookings_service import BookingError, BookingsService
@@ -22,6 +24,7 @@ class LocationsService:
 
     def block_room(self, user, room_id) -> Room:
         room = self._get_room(room_id)
+
         now = timezone.now()
         bookings_service = BookingsService()
 
@@ -83,11 +86,157 @@ class LocationsService:
 
         return room
 
+    def update_room(self, user, room_id, data) -> Room:  # noqa: C901
+        room = self._get_room(room_id)
+
+        is_blocked_new = data.pop("is_blocked", None)
+
+        room_type_new = data.get("room_type")
+        if room_type_new:
+            if room_type_new.type not in ["KITCHEN", "LAUNDRY"]:
+                if room.resources.exists():
+                    raise ValueError("Не можна змінити тип кімнати, якщо в ній є додані ресурси. Спочатку видаліть їх.")
+            else:
+                if room.resources.exists():
+                    kitchen_resources = ["OVEN", "COOKTOP", "STOVE", "MICROWAVE", "FRIDGE"]
+                    laundry_resources = ["WASHING_MACHINE", "DRYER", "IRON"]
+                    existing_resource_types = [res.resource_type.type for res in room.resources.all()]
+
+                    if room_type_new.type == "KITCHEN":
+                        invalid = [rt for rt in existing_resource_types if rt not in kitchen_resources]
+                        if invalid:
+                            raise ValueError(
+                                "У кімнаті є інвентар (наприклад, пральна машина), що не підходить для кухні."
+                            )
+                    elif room_type_new.type == "LAUNDRY":
+                        invalid = [rt for rt in existing_resource_types if rt not in laundry_resources]
+                        if invalid:
+                            raise ValueError("У кімнаті є інвентар (наприклад, плита), що не підходить для пральні.")
+            if room_type_new.type in ["KITCHEN", "LAUNDRY", "TOILET", "BATHROOM"]:
+                if room.user_set.exists():
+                    raise ValueError(
+                        "Не можна зробити кімнату нежитловою, оскільки "
+                        "в ній зараз проживають студенти. Спочатку переселіть їх."
+                    )
+
+        new_name = data.get("name")
+        if new_name and new_name != room.name:
+            if Room.objects.filter(floor__dormitory=room.floor.dormitory, name=new_name).exclude(id=room.id).exists():
+                raise ValueError("Кімната з такою назвою вже існує в цьому гуртожитку.")
+
+        with transaction.atomic():
+            for key, value in data.items():
+                setattr(room, key, value)
+            room.save()
+
+        if is_blocked_new is not None and is_blocked_new != room.is_blocked:
+            if is_blocked_new:
+                self.block_room(user, room_id)
+            else:
+                self.unblock_room(user, room_id)
+
+        room.refresh_from_db()
+        return room
+
+    def delete_room(self, user, room_id):
+        room = self._get_room(room_id)
+
+        if not room.is_blocked:
+            raise ValueError("Спочатку заблокуйте кімнату, а потім вилучайте її з гуртожитку.")
+        if room.user_set.exists():
+            raise ValueError("Не можна вилучити кімнату, доки до неї прикріплені мешканці.")
+        if room.presences.filter(expires_at__gt=timezone.now()).exists():
+            raise ValueError("Не можна вилучити кімнату, доки в ній є активна присутність користувачів.")
+        if room.resources.filter(bookings__status__status="ACTIVE").exists():
+            raise ValueError("Не можна вилучити кімнату, доки її ресурси мають активні бронювання.")
+        if room.events.filter(status__status="ACTIVE").exists():
+            raise ValueError("Не можна вилучити кімнату, доки в ній є активні події.")
+
+        room.delete()
+
+    def create_room(self, user, floor_id, data) -> Room:
+        try:
+            floor = Floor.objects.select_related("dormitory").get(id=floor_id)
+        except Floor.DoesNotExist:
+            raise ValueError("Поверх з таким id не знайдено!")
+
+        svg_element_id = data.get("svg_element_id")
+        if Room.objects.filter(floor=floor, svg_element_id=svg_element_id).exists():
+            raise ValueError("Ця зона мапи вже прив'язана до кімнати.")
+
+        if not self._floor_has_svg_room_id(floor, svg_element_id):
+            raise ValueError("У SVG-мапі цього поверху немає такої кімнати.")
+
+        name = data.get("name")
+        if Room.objects.filter(floor__dormitory=floor.dormitory, name=name).exists():
+            raise ValueError("Кімната з такою назвою вже існує в цьому гуртожитку.")
+
+        data["floor"] = floor
+        return Room.objects.create(**data)
+
+    def create_resource(self, user, room_id, data) -> Resource:
+        room = self._get_room(room_id)
+        if room.room_type.type not in ["KITCHEN", "LAUNDRY"]:
+            raise ValueError("Ресурси можна додавати лише в кухні та пральні.")
+
+        resource_type = data.get("resource_type")
+        if resource_type:
+            self._validate_resource_type_for_room(room, resource_type)
+
+        data["room"] = room
+        return Resource.objects.create(**data)
+
+    def update_resource(self, user, resource_id, data) -> Resource:
+        try:
+            resource = Resource.objects.select_related("room", "room__room_type", "resource_type").get(id=resource_id)
+        except Resource.DoesNotExist:
+            raise ValueError("Ресурс не знайдено!")
+
+        resource_type = data.get("resource_type")
+        if resource_type:
+            self._validate_resource_type_for_room(resource.room, resource_type)
+
+        for key, value in data.items():
+            setattr(resource, key, value)
+        resource.save()
+        return resource
+
+    def delete_resource(self, user, resource_id):
+        try:
+            resource = Resource.objects.get(id=resource_id)
+            resource.delete()
+        except Resource.DoesNotExist:
+            raise ValueError("Ресурс не знайдено!")
+
     def _get_room(self, room_id) -> Room:
         try:
             return Room.objects.get(id=room_id)
         except Room.DoesNotExist:
             raise ValueError("Кімнату з таким id не знайдено!")
+
+    def _floor_has_svg_room_id(self, floor: Floor, svg_element_id: str) -> bool:
+        if not floor.map_file:
+            raise ValueError("Для цього поверху не завантажено SVG-мапу.")
+
+        try:
+            with floor.map_file.open("rb") as file:
+                root = ET.parse(file).getroot()
+        except (OSError, ET.ParseError, ValueError) as exc:
+            raise ValueError("Не вдалося перевірити SVG-мапу поверху.") from exc
+
+        rooms_group = None
+        for element in root.iter():
+            if element.attrib.get("id") == "rooms":
+                rooms_group = element
+                break
+
+        if rooms_group is None:
+            raise ValueError("У SVG-мапі не знайдено групу кімнат.")
+
+        for element in rooms_group.iter():
+            if element.attrib.get("id") == svg_element_id:
+                return True
+        return False
 
     def _send_system_announcement(self, actor, target_users, title, message):
         try:
@@ -106,3 +255,12 @@ class LocationsService:
             AnnouncementsService().create_announcement(actor, announcement_data)
         except AnnouncementError as exc:
             raise ValueError("Не вдалося надіслати сповіщення користувачам. Дію скасовано.") from exc
+
+    def _validate_resource_type_for_room(self, room: Room, resource_type):
+        kitchen_resources = ["OVEN", "COOKTOP", "STOVE", "MICROWAVE", "FRIDGE"]
+        laundry_resources = ["WASHING_MACHINE", "DRYER", "IRON"]
+
+        if room.room_type.type == "KITCHEN" and resource_type.type in laundry_resources:
+            raise ValueError("Цей тип ресурсу не підходить для кухні.")
+        if room.room_type.type == "LAUNDRY" and resource_type.type in kitchen_resources:
+            raise ValueError("Цей тип ресурсу не підходить для пральні.")

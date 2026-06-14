@@ -45,6 +45,7 @@ class UserDetailView(APIView):
                             "room_name": "41/2",
                             "faculty_name": "Тестовий факультет",
                             "major_name": "Тестова спеціальність",
+                            "education_level": "BACHELOR",
                             "year": "4",
                             "status": "Вчуся",
                             "bio": "Працюю над проєктами та дедлайнами.",
@@ -90,8 +91,29 @@ class UserDetailView(APIView):
         description=(
             "Ендпоінт для часткового оновлення (PATCH) профілю користувача. "
             "Звичайний мешканець може редагувати лише власний профіль (доступні поля: full_name, photo, status, bio). "
-            "Адміністратор може редагувати будь-який профіль і має доступ до всіх полів (включаючи role, room, тощо)."
+            "Модератор може редагувати лише status і bio мешканців свого поверху. "
+            "Адміністратор може редагувати будь-який профіль і має доступ до всіх полів "
+            "(включаючи role, room, major, education_level, year, email). "
+            "Під час зміни кімнати бекенд перевіряє, що кімната житлова, не заблокована і має вільні місця. "
+            "Після успішного адмінського оновлення активований користувач отримує лист зі списком змінених полів."
         ),
+        examples=[
+            OpenApiExample(
+                "Адмінське оновлення профілю",
+                value={
+                    "full_name": "Коваленко Дмитро",
+                    "email": "user1@ukma.edu.ua",
+                    "role": 3,
+                    "room": 12,
+                    "major": 4,
+                    "education_level": "MASTER",
+                    "year": 2,
+                    "status": "Готуюсь до сесії",
+                    "bio": "Люблю настільні ігри.",
+                },
+                request_only=True,
+            )
+        ],
         responses={
             200: OpenApiResponse(
                 response=UserFullSerializer,
@@ -101,15 +123,20 @@ class UserDetailView(APIView):
                         name="Оновлений Користувач",
                         value={
                             "id": "906fb366-a8db-4f14-9ab4-00e5869c21fa",
+                            "role_id": 3,
                             "role_name": "RESIDENT",
                             "display_name": "Коваленко Дмитро",
                             "email": "user1@ukma.edu.ua",
                             "photo": "http://localhost:8888/media/avatars/1.jpg",
+                            "room_id": 12,
+                            "floor_id": 4,
+                            "major_id": 4,
                             "dormitory_name": "Маккейна",
                             "floor_number": "4",
                             "room_name": "41/2",
                             "faculty_name": "Тестовий факультет",
                             "major_name": "Тестова спеціальність",
+                            "education_level": "BACHELOR",
                             "year": "4",
                             "status": "Готуюсь до сесії - не турбувати!",
                             "bio": "Оновлений опис профілю. Люблю настільні ігри.",
@@ -123,7 +150,15 @@ class UserDetailView(APIView):
                 examples=[
                     OpenApiExample(
                         "Помилка валідації", value={"major": ['Некоректний первинний ключ "999" - об\'єкт не існує.']}
-                    )
+                    ),
+                    OpenApiExample("Кімната заповнена", value={"room": ["У цій кімнаті немає вільних місць."]}),
+                    OpenApiExample(
+                        "Кімната заблокована",
+                        value={"room": ["Ця кімната заблокована, тому поселення в неї недоступне."]},
+                    ),
+                    OpenApiExample(
+                        "Нежитлова кімната", value={"room": ["Користувача можна поселити лише в житлову кімнату."]}
+                    ),
                 ],
             ),
             401: OpenApiResponse(
@@ -155,3 +190,63 @@ class UserDetailView(APIView):
 
         response_serializer = UserFullSerializer(updated_user)
         return Response(response_serializer.data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        tags=["Користувач"],
+        summary="Виселити користувача з гуртожитку",
+        request=None,
+        parameters=[
+            OpenApiParameter(
+                name="user_id",
+                type=OpenApiTypes.UUID,
+                location="path",
+                required=True,
+                description="Id користувача, якого потрібно виселити та видалити з системи",
+                examples=[OpenApiExample(name="Користувач 1", value="906fb366-a8db-4f14-9ab4-00e5869c21fa")],
+            )
+        ],
+        description=(
+            "Адмінська дія для виселення користувача. "
+            "Перед видаленням бекенд надсилає користувачу email-повідомлення. "
+            "Якщо лист не вдалося надіслати, користувача не буде видалено."
+        ),
+        responses={
+            204: OpenApiResponse(description="Користувача успішно виселено та видалено з бази даних."),
+            400: OpenApiResponse(
+                description="Некоректна дія.",
+                response=dict,
+                examples=[
+                    OpenApiExample(
+                        "Спроба видалити себе",
+                        value={"detail": "Адміністратор не може виселити самого себе."},
+                    ),
+                    OpenApiExample(
+                        "Email не надіслано",
+                        value={"detail": "Не вдалося надіслати email-сповіщення користувачу. Виселення скасовано."},
+                    ),
+                ],
+            ),
+            401: OpenApiResponse(description="Не авторизовано."),
+            403: OpenApiResponse(
+                description="Недостатньо прав.",
+                response=dict,
+                examples=[
+                    OpenApiExample(
+                        "Не адмін",
+                        value={"detail": "Лише адміністратор може виселяти користувачів."},
+                    )
+                ],
+            ),
+            404: OpenApiResponse(
+                description="Користувача не знайдено.",
+                response=dict,
+                examples=[
+                    OpenApiExample("Користувач відсутній", value={"detail": "Користувача з таким id не знайдено!"})
+                ],
+            ),
+        },
+    )
+    def delete(self, request, user_id):
+        user_service = UserService()
+        user_service.evict_user(acting_user=request.user, target_user_id=user_id)
+        return Response(status=status.HTTP_204_NO_CONTENT)

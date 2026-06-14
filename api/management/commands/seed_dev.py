@@ -78,6 +78,7 @@ class Command(BaseCommand):
             "user6@ukma.edu.ua",
             "moderator@ukma.edu.ua",
             "admin@ukma.edu.ua",
+            "teacher@ukma.edu.ua",
         ]
 
         SocialEvent.objects.all().delete()
@@ -85,8 +86,10 @@ class Command(BaseCommand):
         Booking.objects.all().delete()
 
         deleted_count, _ = User.objects.filter(email__in=test_emails).delete()
-        if deleted_count > 0:
-            self.stdout.write(f"Очищено {deleted_count} старих тестових користувачів.")
+        User.objects.filter(email__startswith="moderator").delete()
+        User.objects.filter(
+            email__in=["watchman@ukma.edu.ua", "electrician@ukma.edu.ua", "plumber@ukma.edu.ua"]
+        ).delete()
 
         self.stdout.write("Створення користувачів на 4 та 5 поверхах...")
 
@@ -98,6 +101,8 @@ class Command(BaseCommand):
                     role=resident_role,
                     room=room_41_2,
                     is_activated=False,
+                    position=User.Position.STUDENT,
+                    education_level=User.EducationLevel.BACHELOR,
                 ),
                 User(
                     email="b.zmeul@ukma.edu.ua",
@@ -105,6 +110,8 @@ class Command(BaseCommand):
                     role=resident_role,
                     room=room_41_2,
                     is_activated=False,
+                    position=User.Position.STUDENT,
+                    education_level=User.EducationLevel.BACHELOR,
                 ),
                 User(
                     email="d.lapko@ukma.edu.ua",
@@ -112,6 +119,8 @@ class Command(BaseCommand):
                     role=resident_role,
                     room=room_41_2,
                     is_activated=False,
+                    position=User.Position.STUDENT,
+                    education_level=User.EducationLevel.BACHELOR,
                 ),
             ]
         )
@@ -123,6 +132,8 @@ class Command(BaseCommand):
             room=room_41_1,
             is_activated=True,
             full_name="Коваленко Дмитро",
+            position=User.Position.STUDENT,
+            education_level=User.EducationLevel.BACHELOR,
             year=4,
             major=se_major,
             status="Пишу диплом",
@@ -135,8 +146,11 @@ class Command(BaseCommand):
             room=room_41_1,
             is_activated=True,
             full_name="Шевченко Іван",
+            position=User.Position.STUDENT,
+            education_level=User.EducationLevel.BACHELOR,
             year=3,
             major=cs_major,
+            status="Вчу англійську",
             bio="Граю на гітарі, збираю кубик Рубіка.",
         )
         u3 = User.objects.create(
@@ -146,6 +160,8 @@ class Command(BaseCommand):
             room=room_42_1,
             is_activated=True,
             full_name="Бойко Олексій",
+            position=User.Position.STUDENT,
+            education_level=User.EducationLevel.BACHELOR,
             year=2,
             major=marketing_major,
             status="Шукаю стажування",
@@ -158,6 +174,8 @@ class Command(BaseCommand):
             room=room_42_2,
             is_activated=True,
             full_name="Мельник Анна",
+            position=User.Position.STUDENT,
+            education_level=User.EducationLevel.BACHELOR,
             year=1,
             major=soc_major,
             status="Вчуся",
@@ -171,6 +189,8 @@ class Command(BaseCommand):
             room=room_51_1,
             is_activated=True,
             full_name="Ткаченко Олена",
+            position=User.Position.STUDENT,
+            education_level=User.EducationLevel.BACHELOR,
             year=3,
             major=se_major,
             status="На кухні",
@@ -183,6 +203,8 @@ class Command(BaseCommand):
             room=room_52_2,
             is_activated=True,
             full_name="Григоренко Максим",
+            position=User.Position.STUDENT,
+            education_level=User.EducationLevel.BACHELOR,
             year=4,
             major=cs_major,
             status="Сплю",
@@ -197,6 +219,11 @@ class Command(BaseCommand):
             is_activated=True,
             full_name="Староста 4-го Поверху",
             major=se_major,
+            position=User.Position.STUDENT,
+            education_level=User.EducationLevel.MASTER,
+            year=1,
+            status="Чергую",
+            bio="Староста 4-го поверху. Звертайтеся з будь-якими питаннями щодо порядку.",
         )
         admin = User.objects.create(
             email="admin@ukma.edu.ua",
@@ -209,7 +236,72 @@ class Command(BaseCommand):
             full_name="Головний Адміністратор",
             status="Бог сервера",
             bio="Маю доступ до всіх таблиць бази даних.",
+            position=User.Position.EMPLOYEE,
         )
+        User.objects.create(
+            email="teacher@ukma.edu.ua",
+            password=unusable_password,
+            role=resident_role,
+            room=room_42_2,
+            is_activated=True,
+            full_name="Петров Петро Петрович",
+            position=User.Position.TEACHER,
+            faculty=fi,
+            status="Перевіряю роботи",
+            bio="Викладач кафедри інформатики НаУКМА. Проживаю тимчасово в гуртожитку.",
+        )
+
+        room_doorman = Room.objects.get(name="Кімната швейцара")
+        room_watch = Room.objects.get(name="Вахта")
+
+        User.objects.create(
+            email="watchman@ukma.edu.ua",
+            password=unusable_password,
+            role=resident_role,
+            room=room_watch,
+            is_activated=True,
+            full_name="Ковальчук Петро (Вахтер)",
+            position=User.Position.EMPLOYEE,
+            bio="Черговий вахтер гуртожитку. Завжди на варті порядку.",
+        )
+        User.objects.create(
+            email="electrician@ukma.edu.ua",
+            password=unusable_password,
+            role=resident_role,
+            room=room_doorman,
+            is_activated=True,
+            full_name="Грицюк Ігор (Електрик)",
+            position=User.Position.EMPLOYEE,
+            bio="Черговий електрик гуртожитку. Звертайтеся щодо проблем з проводкою та світлом.",
+        )
+        User.objects.create(
+            email="plumber@ukma.edu.ua",
+            password=unusable_password,
+            role=resident_role,
+            room=room_doorman,
+            is_activated=True,
+            full_name="Василенко Олег (Сантехнік)",
+            position=User.Position.EMPLOYEE,
+            bio="Черговий сантехнік гуртожитку. Звертайтеся щодо проблем з трубами чи водою.",
+        )
+
+        for f in [3, 5, 6, 7, 8, 9]:
+            mod_room = Room.objects.filter(floor__number=f, room_type__type="LIVING").first()
+            if mod_room:
+                User.objects.create(
+                    email=f"moderator{f}@ukma.edu.ua",
+                    password=unusable_password,
+                    role=moderator_role,
+                    room=mod_room,
+                    is_activated=True,
+                    full_name=f"Староста {f}-го Поверху",
+                    major=se_major,
+                    position=User.Position.STUDENT,
+                    education_level=User.EducationLevel.BACHELOR,
+                    year=3,
+                    status="Чергую",
+                    bio=f"Староста {f}-го поверху. Звертайтеся з будь-якими питаннями щодо порядку.",
+                )
 
         self.stdout.write("Генерація запитів на шеринг...")
         SocialSharingRequest.objects.create(
@@ -256,6 +348,7 @@ class Command(BaseCommand):
             end_time=now + timedelta(hours=12),
             max_person=5,
             room=room_42_1,
+            floor=room_42_1.floor,
             is_faculty_only=True,
         )
         event3.participants.add(u2, u1)
@@ -269,6 +362,7 @@ class Command(BaseCommand):
             end_time=(now + timedelta(days=1)).replace(hour=21, minute=30, second=0),
             max_person=4,
             room=kitchen_5,
+            floor=kitchen_5.floor,
         )
         event4.participants.add(u5, u6)
 
@@ -311,7 +405,32 @@ class Command(BaseCommand):
             expires_at=now + timedelta(days=7),
             is_pinned=True,
         )
-
         Announcement.objects.filter(id=water_announcement.id).update(created_at=now - timedelta(days=7))
+
+        floor_target = TargetType.objects.get(type="FLOOR")
+        Announcement.objects.create(
+            creator=admin,
+            target_type=floor_target,
+            target_floor=room_41_1.floor,
+            title="Прибирання кухні на 4-му поверсі",
+            message=(
+                "Шановні мешканці 4-го поверху! Будь ласка, приберіть свої речі з кухонних полиць "
+                "до цієї п'ятниці у зв'язку з проведенням планового генерального прибирання та дезінсекції."
+            ),
+            expires_at=now + timedelta(days=3),
+        )
+
+        room_target = TargetType.objects.get(type="ROOM")
+        Announcement.objects.create(
+            creator=admin,
+            target_type=room_target,
+            target_room=room_41_2,
+            title="Попередження про шум у 41/2",
+            message=(
+                "Надійшла скарга про порушення тиші після 22:00. Будь ласка, дотримуйтесь "
+                "правил внутрішнього розпорядку гуртожитку та поважайте спокій ваших сусідів."
+            ),
+            expires_at=now + timedelta(days=5),
+        )
 
         self.stdout.write(self.style.SUCCESS("Успішно згенеровано розширені тестові дані для ДЕМО!"))

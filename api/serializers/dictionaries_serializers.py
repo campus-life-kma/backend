@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from api.models import Faculty, Major, Role, TargetType, Dormitory, Floor, Room
+from api.models import Faculty, Major, Role, TargetType, Dormitory, Floor, Room, Resource
 
 
 class FacultyListSerializer(serializers.ModelSerializer):
@@ -40,6 +40,33 @@ class FloorListSerializer(serializers.ModelSerializer):
 
 
 class RoomListSerializer(serializers.ModelSerializer):
+    floor_number = serializers.IntegerField(source="floor.number", read_only=True, help_text="Номер поверху")
+    room_type = serializers.CharField(source="room_type.type", read_only=True, help_text="Тип кімнати")
+    current_residents_count = serializers.IntegerField(
+        read_only=True, help_text="Поточна кількість закріплених мешканців"
+    )
+
     class Meta:
         model = Room
-        fields = ["id", "name", "floor"]
+        fields = [
+            "id",
+            "name",
+            "floor",
+            "floor_number",
+            "room_type",
+            "max_person",
+            "is_blocked",
+            "current_residents_count",
+        ]
+
+
+class RoomTypeListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Room.room_type.field.related_model
+        fields = ["id", "type"]
+
+
+class ResourceTypeListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Resource.resource_type.field.related_model
+        fields = ["id", "type", "icon_file"]

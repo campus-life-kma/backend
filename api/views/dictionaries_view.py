@@ -1,8 +1,9 @@
 from drf_spectacular.utils import extend_schema, OpenApiResponse, OpenApiExample
+from django.db.models import Count
 from rest_framework import generics
 from rest_framework.permissions import IsAuthenticated
 
-from api.models import Faculty, Major, Role, TargetType, Room, Floor, Dormitory
+from api.models import Faculty, Major, Role, TargetType, Room, Floor, Dormitory, Resource
 from api.serializers.dictionaries_serializers import (
     FacultyListSerializer,
     MajorListSerializer,
@@ -11,6 +12,8 @@ from api.serializers.dictionaries_serializers import (
     RoomListSerializer,
     FloorListSerializer,
     DormitoryListSerializer,
+    RoomTypeListSerializer,
+    ResourceTypeListSerializer,
 )
 
 
@@ -222,7 +225,36 @@ class FloorListView(generics.ListAPIView):
     },
 )
 class RoomListView(generics.ListAPIView):
-    queryset = Room.objects.select_related("floor").all().order_by("floor_id", "name")
+    queryset = (
+        Room.objects.select_related("floor", "room_type")
+        .annotate(current_residents_count=Count("user"))
+        .all()
+        .order_by("floor_id", "name")
+    )
     serializer_class = RoomListSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = None
+
+
+@extend_schema(
+    tags=["Довідники"],
+    summary="Отримати список типів кімнат",
+    responses={200: RoomTypeListSerializer(many=True)},
+)
+class RoomTypeListView(generics.ListAPIView):
+    queryset = Room.room_type.field.related_model.objects.all().order_by("id")
+    serializer_class = RoomTypeListSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = None
+
+
+@extend_schema(
+    tags=["Довідники"],
+    summary="Отримати список типів ресурсів",
+    responses={200: ResourceTypeListSerializer(many=True)},
+)
+class ResourceTypeListView(generics.ListAPIView):
+    queryset = Resource.resource_type.field.related_model.objects.all().order_by("id")
+    serializer_class = ResourceTypeListSerializer
     permission_classes = [IsAuthenticated]
     pagination_class = None
