@@ -6,6 +6,8 @@ from django.conf import settings
 
 
 class SocialEvent(models.Model):
+    """Модель соціальної події (івенту), що створюється мешканцями."""
+
     creator = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -24,7 +26,7 @@ class SocialEvent(models.Model):
         null=True,
         blank=True,
         related_name="events",
-        help_text="Кімната, де відбудеться івент (якщо локація прив'язана до конкретної кімнати)",
+        help_text="Кімната, де відбудеться івент",
     )
     floor = models.ForeignKey(
         "Floor",
@@ -32,14 +34,14 @@ class SocialEvent(models.Model):
         null=True,
         blank=True,
         related_name="events",
-        help_text="Поверх, де відбудеться івент (наприклад, у спільному холі)",
+        help_text="Поверх, де відбудеться івент",
     )
 
     custom_location = models.CharField(
         max_length=255,
         null=True,
         blank=True,
-        help_text="Власна назва локації, якщо це не кімната і не поверх (наприклад, 'Кухня 3-го поверху', 'Подвір'я')",
+        help_text="Власна назва локації, якщо це не кімната і не поверх (наприклад, 'Подвір'я')",
     )
 
     title = models.CharField(max_length=255, help_text="Коротка назва заходу (наприклад, 'Вечір настільних ігор')")
@@ -71,6 +73,7 @@ class SocialEvent(models.Model):
 
     class Meta:
         constraints = [
+            # Захист на рівні бази даних — подія обов'язково повинна мати локацію
             CheckConstraint(
                 condition=Q(room__isnull=False) | Q(floor__isnull=False) | Q(custom_location__isnull=False),
                 name="event_must_have_location",
@@ -78,6 +81,7 @@ class SocialEvent(models.Model):
         ]
 
     def clean(self):
+        """Перевіряє наявність хоча б однієї локації для події."""
         super().clean()
         if not self.room and not self.floor and not self.custom_location:
             raise ValidationError(
@@ -89,6 +93,8 @@ class SocialEvent(models.Model):
 
 
 class SocialSharingStatus(models.Model):
+    """Словникова модель статусів подій та шерингу (ACTIVE, CANCELLED, COMPLETED)."""
+
     status = models.CharField(
         max_length=100, unique=True, help_text="Системна назва статусу (наприклад, 'ACTIVE', 'CANCELLED', 'COMPLETED')"
     )
@@ -98,6 +104,8 @@ class SocialSharingStatus(models.Model):
 
 
 class SocialSharingRequest(models.Model):
+    """Модель запиту на шеринг речей (наприклад, позичити сіль чи праску)."""
+
     creator = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,

@@ -18,9 +18,20 @@ from api.models import (
 
 
 class Command(BaseCommand):
+    """Манагемент-команда для генерації великої кількості тестових даних для симуляції реального навантаження."""
+
     help = "Наповнює базу великою кількістю тестових даних для симуляції реального навантаження"
 
     def handle(self, *args, **kwargs):
+        """Головна точка входу. Оркеструє весь процес генерації даних.
+
+        Очищає старі дані, створює 200 користувачів, 50 подій,
+        100 запитів на шеринг та 500 бронювань.
+
+        Args:
+            *args: Позиційні аргументи Django.
+            **kwargs: Названі аргументи Django.
+        """
         self.stdout.write("Починаємо генерацію МАСИВНИХ тестових даних...")
 
         try:
@@ -43,6 +54,7 @@ class Command(BaseCommand):
             self.stderr.write("Помилка: Немає спеціальностей в базі.")
             return
 
+        # Збираємо всі незаблоковані ресурси — це потрібно для генерації бронювань
         resources = list(Resource.objects.all())
 
         self._clear_old_data()
@@ -58,6 +70,7 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS("Успішно згенеровано МАСИВНІ тестові дані!"))
 
     def _clear_old_data(self):
+        """Видаляє старі масивні дані (події, шеринг, бронювання та масивних користувачів)."""
         self.stdout.write("Очищення старих даних (івенти, шеринг, бронювання)...")
         SocialEvent.objects.all().delete()
         SocialSharingRequest.objects.all().delete()
@@ -65,6 +78,14 @@ class Command(BaseCommand):
         User.objects.filter(email__startswith="massive_user_").delete()
 
     def _get_available_slots(self):
+        """Повертає список вільних місць у житлових кімнатах (крім 1-го поверху).
+
+        Знаходить усі житлові кімнати, підраховує зайнятих мешканців і додає
+        до списку посилання для кожного вільного місця.
+
+        Returns:
+            list[Room]: Перемішаний список кімнат зі слотами для нових користувачів.
+        """
         from django.db.models import Count
 
         rooms_with_counts = (
@@ -77,14 +98,26 @@ class Command(BaseCommand):
         for r in rooms_with_counts:
             if r.is_blocked:
                 continue
+            # Кількість вільних місць = максимальна місткість мінус поточна зайнятість
             free_slots = r.max_person - r.current_residents
             for _ in range(free_slots):
+                # Додаємо кімнату по free_slots разів, щоб кожен майбутній юзер отримав окремий слот
                 available_slots.append(r)
 
         random.shuffle(available_slots)
         return available_slots
 
     def _create_massive_users(self, resident_role, available_slots, majors):
+        """Створює до 200 тестових користувачів (або менше, якщо вільних місць недостатньо).
+
+        Args:
+            resident_role: Об'єкт ролі RESIDENT.
+            available_slots: Список вільних місць у кімнатах.
+            majors: Список спеціальностей для випадкового призначення студентам.
+
+        Returns:
+            list[User]: Створені користувачі (завантажені з БД).
+        """
         unusable_password = make_password("password123")
         num_users = min(200, len(available_slots))
         self.stdout.write(f"Створення {num_users} користувачів...")
@@ -123,6 +156,7 @@ class Command(BaseCommand):
 
         users_to_create = []
         for i in range(1, num_users + 1):
+            # Розподіл позицій: 80% — студенти, 15% — викладачі, 5% — співробітники
             pos = random.choices(
                 [User.Position.STUDENT, User.Position.TEACHER, User.Position.EMPLOYEE], weights=[80, 15, 5]
             )[0]
@@ -142,12 +176,14 @@ class Command(BaseCommand):
             )
 
             if pos == User.Position.STUDENT:
+                # Для студентів додаємо рівень освіти, курс і спеціальність
                 user_data["education_level"] = random.choices(["BACHELOR", "MASTER", "PHD"], weights=[70, 20, 10])[0]
                 user_data["year"] = (
                     random.randint(1, 4) if user_data["education_level"] != "MASTER" else random.randint(1, 2)
                 )
                 user_data["major"] = random.choice(majors)
             elif pos == User.Position.TEACHER:
+                # Викладачі не мають major, тільки faculty
                 user_data["faculty"] = random.choice(majors).faculty
 
             users_to_create.append(User(**user_data))
@@ -156,6 +192,13 @@ class Command(BaseCommand):
         return list(User.objects.filter(email__startswith="massive_user_"))
 
     def _generate_sharing_requests(self, users, active_sharing, completed_sharing):
+        """Генерує 100 запитів на шеринг з випадковими статусами.
+
+        Args:
+            users: Список доступних користувачів.
+            active_sharing: Статус ACTIVE.
+            completed_sharing: Статус COMPLETED.
+        """
         self.stdout.write("Генерація 100 запитів на шеринг...")
         sharing_requests = []
         sharing_titles = [
@@ -179,6 +222,13 @@ class Command(BaseCommand):
         SocialSharingRequest.objects.bulk_create(sharing_requests)
 
     def _generate_social_events(self, users, active_sharing, living_rooms):
+        """Генерує 50 соціальних подій з випадковими назвами та часом.
+
+        Args:
+            users: Список доступних користувачів.
+            active_sharing: Статус ACTIVE для подій.
+            living_rooms: Список житлових кімнат для вибору локації подій.
+        """
         self.stdout.write("Генерація 50 соціальних подій...")
         now = timezone.now()
         event_titles = [
@@ -204,18 +254,31 @@ class Command(BaseCommand):
                 room=random.choice(living_rooms),
             )
             event.save()
+            # Обмежуємо max_p=0 — це означає "без обмежень", використовуємо до 15 як fallback
             limit = max_p if max_p > 0 else 15
             num_participants = random.randint(1, limit)
             participants = random.sample(users, num_participants)
             event.participants.add(*participants)
 
     def _generate_bookings(self, users, resources, active_booking, cancelled_booking):
+        """Генерує 500 бронювань з випадковими часом та статусами.
+
+        Бронювання можуть перетинатися або мати статус CANCELLED.
+        Якщо ресурсів немає, генерація пропускається.
+
+        Args:
+            users: Список доступних користувачів.
+            resources: Список ресурсів для бронювання.
+            active_booking: Статус ACTIVE.
+            cancelled_booking: Статус CANCELLED.
+        """
         self.stdout.write("Генерація 500 бронювань...")
         if resources:
             now = timezone.now()
             bookings_to_create = []
             for i in range(500):
                 resource = random.choice(resources)
+                # Час початку випадково у минулому/майбутньому для реалістичного розкладу
                 start = now + timedelta(days=random.randint(-7, 7), hours=random.randint(-12, 12))
                 start = start.replace(minute=random.choice([0, 30]), second=0, microsecond=0)
                 end = start + timedelta(hours=random.choice([1, 2]))
@@ -225,6 +288,7 @@ class Command(BaseCommand):
                         resource=resource,
                         start_time=start,
                         end_time=end,
+                        # Бронювання можуть перетинатися — це дозволено для симуляції реальних даних
                         status=random.choice([active_booking, cancelled_booking]),
                     )
                 )

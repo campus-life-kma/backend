@@ -13,6 +13,7 @@ from api.services.auth_service import DevLoginService, LoginService
 
 
 class DevLoginView(APIView):
+    """Ендпоінт для авторизації під час розробки за допомогою email (без SSO)."""
 
     permission_classes = []
 
@@ -80,6 +81,14 @@ class DevLoginView(APIView):
         },
     )
     def post(self, request):
+        """Здійснює вхід для потреб розробки без взаємодії з сервісами Microsoft.
+
+        Args:
+            request: Об'єкт HTTP-запиту.
+
+        Returns:
+            Response: Токени доступу та дані користувача, або код помилки 403/404.
+        """
         if not settings.DEBUG:
             return Response({"detail": "Метод доступний тільки під час розробки."}, status=status.HTTP_403_FORBIDDEN)
 
@@ -98,6 +107,8 @@ class DevLoginView(APIView):
 
 
 class LoginView(APIView):
+    """Ендпоінт для авторизації користувачів через Microsoft SSO."""
+
     permission_classes = []
 
     @extend_schema(
@@ -161,6 +172,14 @@ class LoginView(APIView):
         },
     )
     def post(self, request):
+        """Здійснює вхід та активацію профілю мешканця через Microsoft Access Token.
+
+        Args:
+            request: Об'єкт HTTP-запиту.
+
+        Returns:
+            Response: JWT токени доступу та базовий профіль мешканця.
+        """
         serializer = LoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -218,10 +237,14 @@ class LoginView(APIView):
     )
 )
 class CustomTokenRefreshView(TokenRefreshView):
+    """Наслідуваний клас SimpleJWT TokenRefreshView для інтеграції документації Swagger (spectacular)."""
+
     pass
 
 
 class AuthMeView(APIView):
+    """Ендпоінт для отримання базових даних поточного авторизованого користувача."""
+
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
@@ -237,5 +260,13 @@ class AuthMeView(APIView):
         },
     )
     def get(self, request):
+        """Повертає профіль поточного автентифікованого користувача.
+
+        Args:
+            request: Об'єкт HTTP-запиту.
+
+        Returns:
+            Response: Дані профілю з кодом 200 OK.
+        """
         serializer = UserBaseSerializer(request.user, context={"request": request})
         return Response(serializer.data, status=status.HTTP_200_OK)

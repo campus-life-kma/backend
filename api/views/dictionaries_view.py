@@ -20,7 +20,7 @@ from api.serializers.dictionaries_serializers import (
 @extend_schema(
     tags=["Довідники"],
     summary="Отримати список усіх факультетів",
-    description="Повертає повний список факультетів (без пагінації) у вигляді масиву."
+    description="Повертає повний список факультетів (без пагінації) у вигляді масиву. "
     "Ідеально підходить для заповнення випадаючих списків (dropdown) на фронтенді.",
     responses={
         200: OpenApiResponse(
@@ -45,6 +45,8 @@ from api.serializers.dictionaries_serializers import (
     },
 )
 class FacultyListView(generics.ListAPIView):
+    """Представлення для виведення списку факультетів."""
+
     queryset = Faculty.objects.all().order_by("name")
     serializer_class = FacultyListSerializer
     permission_classes = [IsAuthenticated]
@@ -54,7 +56,7 @@ class FacultyListView(generics.ListAPIView):
 @extend_schema(
     tags=["Довідники"],
     summary="Отримати список усіх спеціальностей",
-    description="Повертає повний список спеціальностей (без пагінації) у вигляді масиву."
+    description="Повертає повний список спеціальностей (без пагінації) у вигляді масиву. "
     "Використовується для вибору спеціальності при реєстрації або редагуванні профілю.",
     responses={
         200: OpenApiResponse(
@@ -78,8 +80,9 @@ class FacultyListView(generics.ListAPIView):
         ),
     },
 )
-@extend_schema(tags=["Довідники"], summary="Отримати список усіх спеціальностей")
 class MajorListView(generics.ListAPIView):
+    """Представлення для виведення списку спеціальностей."""
+
     queryset = Major.objects.all().order_by("faculty_id", "name")
     serializer_class = MajorListSerializer
     permission_classes = [IsAuthenticated]
@@ -89,7 +92,7 @@ class MajorListView(generics.ListAPIView):
 @extend_schema(
     tags=["Довідники"],
     summary="Отримати список усіх ролей",
-    description="Повертає повний список доступних системних ролей (без пагінації)."
+    description="Повертає повний список доступних системних ролей (без пагінації). "
     "Може використовуватися адміністраторами для призначення нових ролей користувачам.",
     responses={
         200: OpenApiResponse(
@@ -109,8 +112,9 @@ class MajorListView(generics.ListAPIView):
         ),
     },
 )
-@extend_schema(tags=["Довідники"], summary="Отримати список усіх ролей")
 class RoleListView(generics.ListAPIView):
+    """Представлення для виведення списку ролей користувачів."""
+
     queryset = Role.objects.all().order_by("id")
     serializer_class = RoleListSerializer
     permission_classes = [IsAuthenticated]
@@ -118,7 +122,7 @@ class RoleListView(generics.ListAPIView):
 
 
 @extend_schema(
-    tags=["Довідники"],  # Перенесли сюди ж
+    tags=["Довідники"],
     summary="Отримати типи аудиторії оголошень",
     description="Повертає доступні значення цільової аудиторії (target_type) для створення оголошень (без пагінації).",
     responses={
@@ -145,6 +149,8 @@ class RoleListView(generics.ListAPIView):
     },
 )
 class TargetTypeListView(generics.ListAPIView):
+    """Представлення для виведення списку типів цілей оголошень."""
+
     queryset = TargetType.objects.all().order_by("id")
     serializer_class = TargetTypeListSerializer
     permission_classes = [IsAuthenticated]
@@ -169,6 +175,8 @@ class TargetTypeListView(generics.ListAPIView):
     },
 )
 class DormitoryListView(generics.ListAPIView):
+    """Представлення для виведення списку гуртожитків."""
+
     queryset = Dormitory.objects.all().order_by("name")
     serializer_class = DormitoryListSerializer
     permission_classes = [IsAuthenticated]
@@ -178,7 +186,7 @@ class DormitoryListView(generics.ListAPIView):
 @extend_schema(
     tags=["Довідники"],
     summary="Отримати список усіх поверхів",
-    description="Повертає повний список поверхів."
+    description="Повертає повний список поверхів. "
     "Містить поле dormitory для фільтрації поверхів конкретного гуртожитку на фронтенді.",
     responses={
         200: OpenApiResponse(
@@ -199,6 +207,8 @@ class DormitoryListView(generics.ListAPIView):
     },
 )
 class FloorListView(generics.ListAPIView):
+    """Представлення для виведення списку поверхів гуртожитків."""
+
     queryset = Floor.objects.all().order_by("dormitory_id", "number")
     serializer_class = FloorListSerializer
     permission_classes = [IsAuthenticated]
@@ -208,7 +218,7 @@ class FloorListView(generics.ListAPIView):
 @extend_schema(
     tags=["Довідники"],
     summary="Отримати список усіх кімнат",
-    description="Повертає список кімнат (без пагінації)."
+    description="Повертає список кімнат (без пагінації). "
     "Містить поле floor для прив'язки кімнати до конкретного поверху.",
     responses={
         200: OpenApiResponse(
@@ -225,6 +235,8 @@ class FloorListView(generics.ListAPIView):
     },
 )
 class RoomListView(generics.ListAPIView):
+    """Представлення для виведення списку кімнат з підрахунком мешканців."""
+
     queryset = (
         Room.objects.select_related("floor", "room_type")
         .annotate(current_residents_count=Count("user"))
@@ -242,6 +254,8 @@ class RoomListView(generics.ListAPIView):
     responses={200: RoomTypeListSerializer(many=True)},
 )
 class RoomTypeListView(generics.ListAPIView):
+    """Представлення для виведення списку типів приміщень."""
+
     queryset = Room.room_type.field.related_model.objects.all().order_by("id")
     serializer_class = RoomTypeListSerializer
     permission_classes = [IsAuthenticated]
@@ -254,6 +268,8 @@ class RoomTypeListView(generics.ListAPIView):
     responses={200: ResourceTypeListSerializer(many=True)},
 )
 class ResourceTypeListView(generics.ListAPIView):
+    """Представлення для виведення списку типів інвентарю/ресурсів."""
+
     queryset = Resource.resource_type.field.related_model.objects.all().order_by("id")
     serializer_class = ResourceTypeListSerializer
     permission_classes = [IsAuthenticated]

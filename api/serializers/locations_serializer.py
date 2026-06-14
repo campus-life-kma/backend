@@ -9,12 +9,16 @@ from api.serializers.user_serializer import UserMapSerializer
 
 
 class FloorListSerializer(serializers.ModelSerializer):
+    """Полегшений серіалізатор для списку поверхів."""
+
     class Meta:
         model = Floor
         fields = ["id", "number"]
 
 
 class RoomBlockSerializer(serializers.ModelSerializer):
+    """Серіалізатор для виведення статусу блокування кімнати."""
+
     floor_id = serializers.IntegerField(source="floor.id", read_only=True, help_text="ID поверху кімнати")
     room_type = serializers.CharField(source="room_type.type", read_only=True, help_text="Тип кімнати")
 
@@ -24,10 +28,11 @@ class RoomBlockSerializer(serializers.ModelSerializer):
 
 
 class ResourceSerializer(serializers.ModelSerializer):
+    """Детальний серіалізатор ресурсу (наприклад, пральної машини) для відображення мешканцям."""
+
     resource_type = serializers.CharField(
         source="resource_type.type", help_text="Категорія ресурсу (наприклад 'Пралка', 'Духова піч')"
     )
-
     resource_icon = serializers.FileField(
         source="resource_type.icon_file", read_only=True, help_text="Іконка категорії ресурсу"
     )
@@ -38,6 +43,8 @@ class ResourceSerializer(serializers.ModelSerializer):
 
 
 class RoomMapSerializer(serializers.ModelSerializer):
+    """Серіалізатор кімнати для відображення на інтерактивній карті поверху."""
+
     room_type = serializers.CharField(
         source="room_type.type", help_text="Категорія приміщення (наприклад, 'Житлова', 'Кухня', 'Душова', 'Пральня')"
     )
@@ -60,7 +67,8 @@ class RoomMapSerializer(serializers.ModelSerializer):
         ]
 
     @extend_schema_field(UserMapSerializer(many=True))
-    def get_current_users(self, obj):
+    def get_current_users(self, obj) -> list[dict]:
+        """Визначає користувачів, які зараз перебувають у кімнаті або проживають у ній (якщо немає інших відміток)."""
         now = timezone.now()
 
         condition_present_here = Q(presences__room=obj, presences__expires_at__gt=now)
@@ -70,7 +78,8 @@ class RoomMapSerializer(serializers.ModelSerializer):
         return UserMapSerializer(users, many=True, context=self.context).data
 
     @extend_schema_field(SocialEventMapSerializer(many=True))
-    def get_active_events(self, obj):
+    def get_active_events(self, obj) -> list[dict]:
+        """Повертає список подій, які наразі тривають у цій кімнаті."""
         now = timezone.now()
         events = obj.events.filter(status__status="ACTIVE", start_time__lte=now, end_time__gte=now).select_related(
             "creator", "status"
@@ -79,6 +88,8 @@ class RoomMapSerializer(serializers.ModelSerializer):
 
 
 class FloorMapDataSerializer(serializers.ModelSerializer):
+    """Серіалізатор поверху для повного відмальовування карти з усіма кімнатами та активними подіями."""
+
     dormitory_name = serializers.CharField(
         source="dormitory.name", help_text="Офіційна назва гуртожитку (наприклад, 'Гуртожиток №3')"
     )
@@ -90,7 +101,8 @@ class FloorMapDataSerializer(serializers.ModelSerializer):
         fields = ["id", "number", "map_file", "dormitory_name", "notice", "rooms", "active_floor_events"]
 
     @extend_schema_field(SocialEventMapSerializer(many=True))
-    def get_active_floor_events(self, obj):
+    def get_active_floor_events(self, obj) -> list[dict]:
+        """Повертає список подій поверху, які наразі тривають."""
         now = timezone.now()
         events = obj.events.filter(status__status="ACTIVE", start_time__lte=now, end_time__gte=now).select_related(
             "creator", "status"
@@ -99,6 +111,8 @@ class FloorMapDataSerializer(serializers.ModelSerializer):
 
 
 class RoomUpdateSerializer(serializers.ModelSerializer):
+    """Серіалізатор для оновлення параметрів кімнати адміністратором."""
+
     room_type = serializers.PrimaryKeyRelatedField(
         queryset=Room.room_type.field.related_model.objects.all(), required=False
     )
@@ -107,20 +121,24 @@ class RoomUpdateSerializer(serializers.ModelSerializer):
         model = Room
         fields = ["name", "room_type", "max_person", "is_blocked"]
 
-    def validate_name(self, value):
+    def validate_name(self, value: str) -> str:
+        """Перевіряє, щоб назва кімнати не була пустою після очищення пробілів."""
         if value is not None:
             value = value.strip()
             if not value:
                 raise serializers.ValidationError("Назва не може бути порожньою.")
         return value
 
-    def validate_max_person(self, value):
+    def validate_max_person(self, value: int) -> int:
+        """Перевіряє, щоб місткість кімнати була в межах [0, 100]."""
         if value is not None and (value < 0 or value > 100):
             raise serializers.ValidationError("Місткість кімнати має бути в межах від 0 до 100 осіб.")
         return value
 
 
 class RoomCreateSerializer(serializers.ModelSerializer):
+    """Серіалізатор для створення нової кімнати на поверсі."""
+
     room_type = serializers.PrimaryKeyRelatedField(
         queryset=Room.room_type.field.related_model.objects.all(),
         help_text="ID типу кімнати",
@@ -166,20 +184,24 @@ class RoomCreateSerializer(serializers.ModelSerializer):
             },
         }
 
-    def validate_name(self, value):
+    def validate_name(self, value: str) -> str:
+        """Валідує назву кімнати (без пробілів)."""
         if value is not None:
             value = value.strip()
             if not value:
                 raise serializers.ValidationError("Вкажіть назву кімнати.")
         return value
 
-    def validate_max_person(self, value):
+    def validate_max_person(self, value: int) -> int:
+        """Перевіряє, щоб ліміт місткості кімнати при створенні був у межах [0, 100]."""
         if value is not None and (value < 0 or value > 100):
             raise serializers.ValidationError("Місткість кімнати має бути в межах від 0 до 100 осіб.")
         return value
 
 
 class ResourceCreateUpdateSerializer(serializers.ModelSerializer):
+    """Серіалізатор для створення та редагування ресурсу кімнати."""
+
     resource_type = serializers.PrimaryKeyRelatedField(
         queryset=Resource.resource_type.field.related_model.objects.all(), required=False
     )
@@ -188,14 +210,16 @@ class ResourceCreateUpdateSerializer(serializers.ModelSerializer):
         model = Resource
         fields = ["name", "max_person", "is_blocked", "resource_type"]
 
-    def validate_name(self, value):
+    def validate_name(self, value: str) -> str:
+        """Валідує назву ресурсу (без пробілів)."""
         if value is not None:
             value = value.strip()
             if not value:
                 raise serializers.ValidationError("Вкажіть назву ресурсу.")
         return value
 
-    def validate_max_person(self, value):
+    def validate_max_person(self, value: int) -> int:
+        """Перевіряє, щоб ліміт використання ресурсу був у межах [1, 100]."""
         if value is not None and (value < 1 or value > 100):
             raise serializers.ValidationError("Місткість ресурсу повинна бути в межах від 1 до 100 осіб.")
         return value

@@ -20,12 +20,24 @@ from api.models import (
 
 
 class Command(BaseCommand):
+    """Management-команда для наповнення БД багатими тестовими даними для локальної розробки та демо."""
+
     help = "Наповнює базу багатими тестовими даними для локальної розробки та демо"
 
     def handle(self, *args, **kwargs):
+        """Головна точка входу команди сіду.
+
+        Спочатку отримує необхідні об'єкти з БД (кімнати, ролі, ресурси), потім видаляє
+        старі тестові дані (події, бронювання, користувачі) і створює нових.
+
+        Args:
+            *args: Позиційні аргументи Django.
+            **kwargs: Названі аргументи Django.
+        """
         self.stdout.write("Починаємо генерацію тестових даних...")
 
         try:
+            # Отримуємо конкретні кімнати для розселення тестових користувачів
             room_41_2 = Room.objects.get(name="41/2")
             room_41_1 = Room.objects.get(name="41/1")
             room_42_1 = Room.objects.get(name="42/1")
@@ -35,9 +47,11 @@ class Command(BaseCommand):
             room_52_2 = Room.objects.get(name="52/2")
             kitchen_5 = Room.objects.get(name="Кухня 53/1")
 
+            # Спільні та службові кімнати
             laundry = Room.objects.get(name="Пральня")
             room_admin = Room.objects.get(name="Адміністрація")
 
+            # Ресурси, на які будуть створені тестові бронювання
             washing_machine_1 = Resource.objects.get(room=laundry, name="Пралка 1")
             washing_machine_2 = Resource.objects.get(room=laundry, name="Пралка 2")
             cooktop_1 = Resource.objects.get(room=kitchen_5, name="Варильна поверхня 1")
@@ -46,6 +60,7 @@ class Command(BaseCommand):
             moderator_role = Role.objects.get(name="MODERATOR")
             admin_role = Role.objects.get(name="ADMIN")
 
+            # Статуси для соціальних подій та шерингу використовуємо один об'єкт для обох
             active_sharing = SocialSharingStatus.objects.get(status="ACTIVE")
             completed_sharing = SocialSharingStatus.objects.get(status="COMPLETED")
             active_booking = BookingStatus.objects.get(status="ACTIVE")
@@ -63,9 +78,12 @@ class Command(BaseCommand):
         fsocial = Faculty.objects.get(name="Факультет соціальних наук та соціальних технологій")
         soc_major = Major.objects.get(faculty=fsocial, name="Соціологія")
 
+        # unusable_password — для тестових акаунтів без пароля (логін лише через Google OAuth)
         unusable_password = make_password(None)
+        # admin_password — явний пароль для адміністратора, щоб зайти в Django Admin
         admin_password = make_password("Qwerty1234!")
 
+        # Список всіх email тестових акаунтів — видалятимемо лише їх, щоб не зачепити prod-дані
         test_emails = [
             "d.bezukh@ukma.edu.ua",
             "b.zmeul@ukma.edu.ua",
@@ -81,18 +99,22 @@ class Command(BaseCommand):
             "teacher@ukma.edu.ua",
         ]
 
+        # Спочатку видаляємо залежні записи, щоб уникнути помилок FK при видаленні юзерів
         SocialEvent.objects.all().delete()
         SocialSharingRequest.objects.all().delete()
         Booking.objects.all().delete()
 
         deleted_count, _ = User.objects.filter(email__in=test_emails).delete()
+        # Moderator{N} — старости поверхів, що генеруються в циклі нижче
         User.objects.filter(email__startswith="moderator").delete()
+        # Службові акаунти (вахтер, електрик, сантехнік)
         User.objects.filter(
             email__in=["watchman@ukma.edu.ua", "electrician@ukma.edu.ua", "plumber@ukma.edu.ua"]
         ).delete()
 
         self.stdout.write("Створення користувачів на 4 та 5 поверхах...")
 
+        # Три не-активовані акаунти — симулюють запрошених, які ще не прийняли запрошення
         User.objects.bulk_create(
             [
                 User(
@@ -286,6 +308,7 @@ class Command(BaseCommand):
         )
 
         for f in [3, 5, 6, 7, 8, 9]:
+            # Для кожного поверху шукаємо першу доступну житлову кімнату під старосту
             mod_room = Room.objects.filter(floor__number=f, room_type__type="LIVING").first()
             if mod_room:
                 User.objects.create(
@@ -349,7 +372,7 @@ class Command(BaseCommand):
             max_person=5,
             room=room_42_1,
             floor=room_42_1.floor,
-            is_faculty_only=True,
+            is_faculty_only=True,  # Подія тільки для студентів Факультету Інформатики
         )
         event3.participants.add(u2, u1)
 

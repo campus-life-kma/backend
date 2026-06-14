@@ -7,6 +7,8 @@ from api.services.announcement_email_service import AnnouncementEmailService
 
 
 class AnnouncementError(Exception):
+    """Базовий клас для винятків, пов'язаних з оголошеннями."""
+
     default_detail = "Сталася помилка оголошення."
 
     def __init__(self, detail=None):
@@ -14,22 +16,32 @@ class AnnouncementError(Exception):
 
 
 class AnnouncementNotFoundError(AnnouncementError):
+    """Виняток, який виникає, коли оголошення не знайдено."""
+
     default_detail = "Оголошення не знайдено."
 
 
 class AnnouncementPermissionDeniedError(AnnouncementError):
+    """Виняток, який виникає при спробі виконати дію без відповідних прав."""
+
     default_detail = "У вас немає прав для цієї дії."
 
 
 class AnnouncementValidationError(AnnouncementError):
+    """Виняток для помилок валідації даних оголошення."""
+
     default_detail = "Оголошення неможливо обробити."
 
 
 class AnnouncementEmailSendError(AnnouncementError):
+    """Виняток, який виникає у разі збою відправки email-сповіщень."""
+
     default_detail = "Не вдалося надіслати email-сповіщення отримувачам."
 
 
 class AnnouncementsService:
+    """Сервіс для роботи з оголошеннями, визначення отримувачів та маркування прочитаних."""
+
     recipient_ordering_fields = {
         "id": "id",
         "display_name": "full_name",
@@ -43,6 +55,14 @@ class AnnouncementsService:
     }
 
     def get_active_announcements(self, user):
+        """Повертає список активних оголошень, які призначені для користувача.
+
+        Args:
+            user: Об'єкт користувача, для якого підбираються оголошення.
+
+        Returns:
+            QuerySet: Активні та не прочитані оголошення.
+        """
         now = timezone.now()
         user_floor_id = self.get_user_floor_id(user)
 
@@ -54,6 +74,7 @@ class AnnouncementsService:
         if user.room_id:
             target_filter |= Q(target_type__type="ROOM", target_room_id=user.room_id)
 
+        # Фільтруємо за часом дії та виключаємо безстрокові оголошення, які вже прочитані
         announcements = (
             Announcement.objects.filter(Q(expires_at__isnull=True) | Q(expires_at__gt=now))
             .filter(target_filter)
@@ -67,6 +88,18 @@ class AnnouncementsService:
         return announcements
 
     def get_available_recipients(self, user, filters):
+        """Повертає список доступних адресатів для створення оголошень з урахуванням прав та фільтрів.
+
+        Args:
+            user: Користувач, який робить запит.
+            filters: Словник з фільтрами та параметрами пошуку.
+
+        Returns:
+            QuerySet: Список користувачів-отримувачів.
+
+        Raises:
+            AnnouncementPermissionDeniedError: Якщо у користувача немає прав.
+        """
         if not user.is_admin and not user.is_moderator:
             raise AnnouncementPermissionDeniedError("У вас немає прав для перегляду адресатів оголошень.")
 
@@ -78,6 +111,7 @@ class AnnouncementsService:
         return recipients.order_by(*self.get_recipient_ordering(ordering))
 
     def get_recipient_base_queryset(self):
+        """Формує базовий QuerySet для потенційних отримувачів оголошень."""
         return (
             User.objects.filter(is_activated=True)
             .exclude(email="")
@@ -85,6 +119,16 @@ class AnnouncementsService:
         )
 
     def scope_recipients_for_user(self, user, recipients, filters):
+        """Обмежує область видимості адресатів залежно від ролі користувача (модератор чи адмін).
+
+        Args:
+            user: Об'єкт користувача.
+            recipients: Базовий QuerySet отримувачів.
+            filters: Фільтри запиту.
+
+        Returns:
+            QuerySet: Обмежений QuerySet отримувачів.
+        """
         if user.is_moderator:
             user_floor_id = self.get_user_floor_id(user)
             if not user_floor_id:
@@ -98,6 +142,7 @@ class AnnouncementsService:
         return recipients
 
     def apply_recipient_filters(self, recipients, filters):
+        """Застосовує точні фільтри (кімната, факультет, спеціальність, роль, курс)."""
         filter_map = {
             "room_id": "room_id",
             "faculty_id": "major__faculty_id",
@@ -114,6 +159,7 @@ class AnnouncementsService:
         return recipients
 
     def apply_recipient_search(self, recipients, query):
+        """Виконує текстовий пошук по імені, пошті, кімнаті, факультету, спеціальності та ролі."""
         if not query:
             return recipients
 
@@ -127,6 +173,14 @@ class AnnouncementsService:
         )
 
     def get_recipient_ordering(self, ordering):
+        """Формує параметри сортування результатів за вказаним полем.
+
+        Args:
+            ordering: Рядок із параметрами сортування.
+
+        Returns:
+            list: Список полів для сортування.
+        """
         fields = []
         for raw_field in ordering.split(","):
             raw_field = raw_field.strip()
@@ -145,7 +199,16 @@ class AnnouncementsService:
         fields.append("email")
         return fields
 
-    def mark_as_read(self, user, announcement_id):
+    def mark_as_read(self, user, announcement_id) -> Announcement:
+        """Позначає оголошення як прочитане користувачем.
+
+        Args:
+            user: Об'єкт користувача.
+            announcement_id: Ідентифікатор оголошення.
+
+        Returns:
+            Announcement: Позначене оголошення.
+        """
         try:
             announcement = Announcement.objects.select_related("target_type", "target_floor", "target_room").get(
                 id=announcement_id
@@ -159,7 +222,16 @@ class AnnouncementsService:
         AnnouncementRead.objects.get_or_create(announcement=announcement, user=user)
         return announcement
 
-    def create_announcement(self, user, validated_data):
+    def create_announcement(self, user, validated_data) -> Announcement:
+        """Створює нове оголошення та ініціює розсилку електронної пошти отримувачам.
+
+        Args:
+            user: Створювач оголошення.
+            validated_data: Валідовані дані оголошення.
+
+        Returns:
+            Announcement: Створене оголошення.
+        """
         target_type = validated_data["target_type"]
 
         self.validate_create_permissions(user, target_type, validated_data)
@@ -170,6 +242,7 @@ class AnnouncementsService:
         if expires_at and expires_at <= timezone.now():
             raise AnnouncementValidationError("Час завершення оголошення має бути в майбутньому.")
 
+        # Використовуємо транзакцію для створення оголошення та автоматичної розсилки сповіщень
         with transaction.atomic():
             announcement = Announcement.objects.create(creator=user, **validated_data)
             if target_users:
@@ -183,12 +256,14 @@ class AnnouncementsService:
         return announcement
 
     def validate_create_permissions(self, user, target_type, validated_data):
+        """Перевіряє права користувача на створення оголошення для обраної цільової аудиторії."""
         if user.is_admin:
             return
 
         if not user.is_moderator:
             raise AnnouncementPermissionDeniedError("У вас немає прав для створення оголошень.")
 
+        # Модератор (голова поверху) може створювати оголошення лише на свій поверх
         if target_type.type == "FLOOR":
             target_floor = validated_data.get("target_floor")
             if not target_floor:
@@ -199,6 +274,7 @@ class AnnouncementsService:
                     "Голова поверху може створювати оголошення лише для свого поверху."
                 )
 
+        # Або конкретним мешканцям свого поверху
         elif target_type.type == "SPECIFIC_USERS":
             target_users = validated_data.get("target_users", [])
             mod_floor_id = self.get_user_floor_id(user)
@@ -213,7 +289,8 @@ class AnnouncementsService:
                 "Голова поверху може створювати оголошення лише для свого поверху або конкретних мешканців."
             )
 
-    def can_user_see_announcement(self, user, announcement):
+    def can_user_see_announcement(self, user, announcement) -> bool:
+        """Перевіряє, чи має користувач доступ до перегляду вказаного оголошення."""
         target_type = announcement.target_type.type
 
         if announcement.expires_at and announcement.expires_at <= timezone.now():
@@ -234,12 +311,14 @@ class AnnouncementsService:
         return False
 
     def get_user_floor_id(self, user):
+        """Допоміжний метод для отримання ідентифікатора поверху користувача."""
         if user.room_id:
             return user.room.floor_id
 
         return None
 
-    def get_target_type(self, target_type):
+    def get_target_type(self, target_type) -> TargetType:
+        """Отримує об'єкт TargetType за його назвою."""
         try:
             return TargetType.objects.get(type=target_type)
         except TargetType.DoesNotExist as exc:

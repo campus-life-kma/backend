@@ -21,6 +21,8 @@ from api.services.locations_service import LocationsService
 
 
 class FloorsView(APIView):
+    """Ендпоінт для отримання списку поверхів конкретного гуртожитку."""
+
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
@@ -56,6 +58,15 @@ class FloorsView(APIView):
         },
     )
     def get(self, request, dormitory_id):
+        """Повертає відсортований список поверхів гуртожитку.
+
+        Args:
+            request: HTTP-запит.
+            dormitory_id: Ідентифікатор гуртожитку.
+
+        Returns:
+            Response: Список поверхів або 404, якщо гуртожиток не знайдено.
+        """
         service = LocationsService()
         try:
             floors = service.get_floors_by_dormitory_id(dormitory_id)
@@ -69,6 +80,8 @@ class FloorsView(APIView):
 
 
 class FloorMapDataView(APIView):
+    """Ендпоінт для отримання повної мапи поверху з кімнатами та подіями."""
+
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
@@ -184,6 +197,15 @@ class FloorMapDataView(APIView):
         },
     )
     def get(self, request, floor_id):
+        """Повертає дані мапи поверху разом із кімнатами та активними подіями.
+
+        Args:
+            request: HTTP-запит.
+            floor_id: Ідентифікатор поверху в базі даних.
+
+        Returns:
+            Response: Дані мапи або 404, якщо поверх не знайдено.
+        """
         try:
             floor = Floor.objects.get(id=floor_id)
             serializer = FloorMapDataSerializer(floor, context={"request": request})
@@ -194,6 +216,8 @@ class FloorMapDataView(APIView):
 
 
 class RoomBlockView(APIView):
+    """Ендпоінт для блокування кімнати (тільки адміністратор)."""
+
     permission_classes = [AdminPermission]
 
     @extend_schema(
@@ -221,6 +245,15 @@ class RoomBlockView(APIView):
         },
     )
     def patch(self, request, room_id):
+        """Блокує кімнату за її ID.
+
+        Args:
+            request: HTTP-запит.
+            room_id: Ідентифікатор кімнати.
+
+        Returns:
+            Response: Дані заблокованої кімнати або помилку.
+        """
         service = LocationsService()
         try:
             room = service.block_room(request.user, room_id)
@@ -235,6 +268,8 @@ class RoomBlockView(APIView):
 
 
 class RoomUnblockView(APIView):
+    """Ендпоінт для розблокування кімнати (тільки адміністратор)."""
+
     permission_classes = [AdminPermission]
 
     @extend_schema(
@@ -262,6 +297,15 @@ class RoomUnblockView(APIView):
         },
     )
     def patch(self, request, room_id):
+        """Розблоковує кімнату за її ID.
+
+        Args:
+            request: HTTP-запит.
+            room_id: Ідентифікатор кімнати.
+
+        Returns:
+            Response: Дані розблокованої кімнати або 404.
+        """
         service = LocationsService()
         try:
             room = service.unblock_room(request.user, room_id)
@@ -273,6 +317,8 @@ class RoomUnblockView(APIView):
 
 
 class RoomUpdateView(APIView):
+    """Ендпоінт для редагування та видалення кімнати (тільки адміністратор)."""
+
     permission_classes = [AdminPermission]
 
     @extend_schema(
@@ -282,6 +328,15 @@ class RoomUpdateView(APIView):
         responses={200: RoomBlockSerializer},
     )
     def patch(self, request, room_id):
+        """Оновлює параметри кімнати (назва, тип, місткість тощо).
+
+        Args:
+            request: HTTP-запит із частковими або повними даними для оновлення.
+            room_id: Ідентифікатор кімнати.
+
+        Returns:
+            Response: Оновлені дані кімнати або помилку валідації.
+        """
         serializer = RoomUpdateSerializer(data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
 
@@ -327,6 +382,18 @@ class RoomUpdateView(APIView):
         },
     )
     def delete(self, request, room_id):
+        """Видаляє кімнату з активної мапи гуртожитку.
+
+        Кімнату можна видалити лише після попереднього блокування та
+        відсутності прикріплених мешканців.
+
+        Args:
+            request: HTTP-запит.
+            room_id: Ідентифікатор кімнати.
+
+        Returns:
+            Response: 204 No Content або повідомлення про помилку.
+        """
         service = LocationsService()
         try:
             service.delete_room(request.user, room_id)
@@ -340,6 +407,8 @@ class RoomUpdateView(APIView):
 
 
 class RoomCreateView(APIView):
+    """Ендпоінт для підключення неактивної SVG-зони як кімнати (тільки адміністратор)."""
+
     permission_classes = [AdminPermission]
 
     @extend_schema(
@@ -417,6 +486,15 @@ class RoomCreateView(APIView):
         ],
     )
     def post(self, request, floor_id):
+        """Створює кімнату, прив'язуючи її до SVG-зони поверху.
+
+        Args:
+            request: HTTP-запит із даними нової кімнати.
+            floor_id: Ідентифікатор поверху, де знаходиться SVG-зона.
+
+        Returns:
+            Response: Дані створеної кімнати або повідомлення про помилку.
+        """
         serializer = RoomCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -434,6 +512,8 @@ class RoomCreateView(APIView):
 
 
 class ResourceCreateView(APIView):
+    """Ендпоінт для створення ресурсу в кімнаті (тільки адміністратор)."""
+
     permission_classes = [AdminPermission]
 
     @extend_schema(
@@ -443,6 +523,15 @@ class ResourceCreateView(APIView):
         responses={201: ResourceSerializer},
     )
     def post(self, request, room_id):
+        """Створює новий ресурс (обладнання) у зазначеній кімнаті.
+
+        Args:
+            request: HTTP-запит із даними ресурсу.
+            room_id: Ідентифікатор кімнати, до якої додається ресурс.
+
+        Returns:
+            Response: Дані створеного ресурсу або повідомлення про помилку.
+        """
         serializer = ResourceCreateUpdateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -457,6 +546,8 @@ class ResourceCreateView(APIView):
 
 
 class ResourceDetailView(APIView):
+    """Ендпоінт для оновлення та видалення ресурсу (тільки адміністратор)."""
+
     permission_classes = [AdminPermission]
 
     @extend_schema(
@@ -466,6 +557,15 @@ class ResourceDetailView(APIView):
         responses={200: ResourceSerializer},
     )
     def patch(self, request, resource_id):
+        """Оновлює дані ресурсу.
+
+        Args:
+            request: HTTP-запит із частковими або повними даними ресурсу.
+            resource_id: Ідентифікатор ресурсу.
+
+        Returns:
+            Response: Оновлені дані ресурсу або повідомлення про помилку.
+        """
         serializer = ResourceCreateUpdateSerializer(data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
 
@@ -487,6 +587,15 @@ class ResourceDetailView(APIView):
         responses={204: None},
     )
     def delete(self, request, resource_id):
+        """Видаляє ресурс із кімнати.
+
+        Args:
+            request: HTTP-запит.
+            resource_id: Ідентифікатор ресурсу.
+
+        Returns:
+            Response: 204 No Content або 404, якщо ресурс не знайдено.
+        """
         service = LocationsService()
         try:
             service.delete_resource(request.user, resource_id)

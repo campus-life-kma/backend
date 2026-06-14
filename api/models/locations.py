@@ -3,6 +3,8 @@ from django.core.validators import MinValueValidator
 
 
 class Dormitory(models.Model):
+    """Модель гуртожитку."""
+
     name = models.CharField(max_length=255, help_text="Офіційна назва гуртожитку (наприклад, 'Гуртожиток №3')")
     location = models.CharField(
         max_length=500, null=True, blank=True, help_text="Фізична адреса або геолокація будівлі"
@@ -13,6 +15,8 @@ class Dormitory(models.Model):
 
 
 class Floor(models.Model):
+    """Модель поверху гуртожитку, що містить файл карти та попередження."""
+
     dormitory = models.ForeignKey(
         Dormitory, on_delete=models.CASCADE, related_name="floors", help_text="Гуртожиток, до якого належить цей поверх"
     )
@@ -35,6 +39,8 @@ class Floor(models.Model):
 
 
 class RoomType(models.Model):
+    """Словникова модель для типів приміщень (LIVING, KITCHEN, LAUNDRY тощо)."""
+
     type = models.CharField(
         max_length=50,
         unique=True,
@@ -46,6 +52,8 @@ class RoomType(models.Model):
 
 
 class Room(models.Model):
+    """Модель конкретної кімнати або зони на поверсі."""
+
     floor = models.ForeignKey(
         Floor, on_delete=models.CASCADE, related_name="rooms", help_text="Поверх, на якому знаходиться кімната"
     )
@@ -65,12 +73,11 @@ class Room(models.Model):
     )
     is_blocked = models.BooleanField(
         default=False,
-        help_text="Якщо True, кімната повністю недоступна (наприклад, через капітальний ремонт, санітарний день тощо)",
+        help_text="Якщо True, кімната повністю недоступна (наприклад, через ремонт)",
     )
     svg_element_id = models.CharField(
         max_length=100,
-        help_text="ID елемента (полігону/шляху) всередині SVG-карти поверху. "
-        "Використовується фронтендом для підсвічування цієї кімнати при наведенні.",
+        help_text="ID елемента всередині SVG-карти поверху для підсвічування на фронтенді",
     )
 
     def __str__(self):
@@ -78,6 +85,8 @@ class Room(models.Model):
 
 
 class ResourceType(models.Model):
+    """Словникова модель для типів ресурсів (WASHING_MACHINE, COOKTOP тощо) та їх іконок."""
+
     type = models.CharField(max_length=50, unique=True, help_text="Тип ресурсу, наприклад пралка")
     icon_file = models.FileField(
         upload_to="resource-icons/",
@@ -89,6 +98,8 @@ class ResourceType(models.Model):
 
 
 class Resource(models.Model):
+    """Модель ресурсу для бронювання, розташованого у певній кімнаті."""
+
     room = models.ForeignKey(
         Room,
         on_delete=models.CASCADE,
@@ -100,16 +111,13 @@ class Resource(models.Model):
     )
     name = models.CharField(
         max_length=100,
-        help_text="Назва конкретного ресурсу для бронювання "
-        "(наприклад, 'Пральна машина №1', 'Душова кабінка №2', 'Піч ліва')",
+        help_text="Назва конкретного ресурсу для бронювання (наприклад, 'Пральна машина №1')",
     )
     max_person = models.IntegerField(
         validators=[MinValueValidator(1)],
         help_text="Скільки людей можуть одночасно забронювати або використовувати цей ресурс (найчастіше 1)",
     )
-    is_blocked = models.BooleanField(
-        default=False, help_text="Якщо True, ресурс недоступний для бронювання (наприклад, зламалася пральна машина)"
-    )
+    is_blocked = models.BooleanField(default=False, help_text="Якщо True, ресурс недоступний для бронювання")
 
     def __str__(self):
         return f"{self.name} ({self.room.name})"

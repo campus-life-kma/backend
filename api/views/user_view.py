@@ -10,6 +10,8 @@ from api.services.user_service import UserService
 
 
 class UserDetailView(APIView):
+    """Представлення для перегляду та керування деталями профілю користувача."""
+
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
@@ -68,6 +70,15 @@ class UserDetailView(APIView):
         },
     )
     def get(self, request, user_id):
+        """Отримує повний профіль користувача за його ідентифікатором.
+
+        Args:
+            request: Об'єкт HTTP-запиту.
+            user_id: Ідентифікатор користувача.
+
+        Returns:
+            Response: Дані користувача з кодом 200 OK.
+        """
         user_service = UserService()
         user = user_service.get_user_by_id(user_id)
         serializer = UserFullSerializer(user)
@@ -90,12 +101,10 @@ class UserDetailView(APIView):
         ],
         description=(
             "Ендпоінт для часткового оновлення (PATCH) профілю користувача. "
-            "Звичайний мешканець може редагувати лише власний профіль (доступні поля: full_name, photo, status, bio). "
+            "Звичайний мешканець може редагувати лише власний профіль. "
             "Модератор може редагувати лише status і bio мешканців свого поверху. "
-            "Адміністратор може редагувати будь-який профіль і має доступ до всіх полів "
-            "(включаючи role, room, major, education_level, year, email). "
-            "Під час зміни кімнати бекенд перевіряє, що кімната житлова, не заблокована і має вільні місця. "
-            "Після успішного адмінського оновлення активований користувач отримує лист зі списком змінених полів."
+            "Адміністратор може редагувати будь-який профіль і має доступ до всіх полів. "
+            "Після успішного адмінського оновлення користувач отримує лист зі списком змін."
         ),
         examples=[
             OpenApiExample(
@@ -183,6 +192,15 @@ class UserDetailView(APIView):
         },
     )
     def patch(self, request, user_id):
+        """Оновлює дані профілю користувача відповідно до його прав/ролі.
+
+        Args:
+            request: Об'єкт HTTP-запиту.
+            user_id: Ідентифікатор користувача.
+
+        Returns:
+            Response: Оновлені дані профілю.
+        """
         user_service = UserService()
         updated_user = user_service.update_profile(
             acting_user=request.user, target_user_id=user_id, update_data=request.data
@@ -247,6 +265,15 @@ class UserDetailView(APIView):
         },
     )
     def delete(self, request, user_id):
+        """Виселяє користувача з гуртожитку та видаляє його обліковий запис із системи.
+
+        Args:
+            request: Об'єкт HTTP-запиту.
+            user_id: Ідентифікатор користувача.
+
+        Returns:
+            Response: Пуста відповідь із кодом 204 No Content.
+        """
         user_service = UserService()
         user_service.evict_user(acting_user=request.user, target_user_id=user_id)
         return Response(status=status.HTTP_204_NO_CONTENT)

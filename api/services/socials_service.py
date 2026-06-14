@@ -11,6 +11,8 @@ from api.services.announcement_email_service import AnnouncementEmailService
 
 
 class SocialError(Exception):
+    """Базовий клас винятків соціальної стрічки."""
+
     default_detail = "Сталася помилка соціальної стрічки."
 
     def __init__(self, detail=None):
@@ -18,33 +20,57 @@ class SocialError(Exception):
 
 
 class SocialNotFoundError(SocialError):
+    """Виняток, коли подію чи запит на шеринг не знайдено."""
+
     default_detail = "Об'єкт не знайдено."
 
 
 class SocialPermissionDeniedError(SocialError):
+    """Виняток, коли користувач не має прав на редагування/видалення."""
+
     default_detail = "У вас немає прав для цієї дії."
 
 
 class SocialAccessDeniedError(SocialError):
+    """Виняток при спробі отримати доступ до прихованої/заповненої події."""
+
     default_detail = "Ви не маєте доступу до цієї події."
 
 
 class SocialEventFullError(SocialError):
+    """Виняток при спробі приєднатися до повністю заповненої події."""
+
     default_detail = "На цю подію вже немає вільних місць."
 
 
 class SocialEventUnavailableError(SocialError):
+    """Виняток при спробі змінити чи приєднатися до неактивної/завершеної події."""
+
     default_detail = "Неможливо приєднатися до події, яка вже завершилася."
 
 
 class SocialStatusNotFoundError(SocialError):
+    """Виняток, коли відповідний статус події відсутній в базі даних."""
+
     default_detail = "Потрібний статус не знайдено в базі даних."
 
 
 class SocialsService:
+    """Сервіс керування соціальною стрічкою, подіями та запитами на шеринг."""
+
     page_size = 20
 
-    def get_feed(self, user, page, filters: dict):
+    def get_feed(self, user, page, filters: dict) -> dict:
+        """Повертає сторінку соціальної стрічки (події та шеринги).
+
+        Args:
+            user: Користувач, який робить запит.
+            page: Номер сторінки.
+            filters: Фільтри вибірки (тип, сортування, поверхи).
+
+        Returns:
+            dict: Дані сторінки стрічки із записами.
+        """
         page = max(page, 1)
         now = timezone.now()
 
@@ -62,6 +88,16 @@ class SocialsService:
         }
 
     def get_feed_rows(self, user, now, filters: dict):
+        """Отримує ідентифікатори та тип записів стрічки для побудови пагінації.
+
+        Args:
+            user: Користувач.
+            now: Поточний час.
+            filters: Фільтри стрічки.
+
+        Returns:
+            QuerySet: Об'єднана вибірка подій та запитів на шеринг.
+        """
         item_type = filters.get("item_type", "all")
         ordering = filters.get("ordering", "created_at")
 
@@ -78,6 +114,7 @@ class SocialsService:
             sharing_rows = self._get_sharing_rows(user, filters, sharing_sort_field)
 
         if event_rows is not None and sharing_rows is not None:
+            # Об'єднуємо QuerySet обох типів за допомогою SQL UNION
             combined = event_rows.union(sharing_rows, all=True)
         elif event_rows is not None:
             combined = event_rows
@@ -91,6 +128,7 @@ class SocialsService:
         return combined.order_by("-sort_time")
 
     def _get_event_rows(self, user, now, filters: dict, sort_field: str):
+        """Формує QuerySet для подій у стрічці з урахуванням прав та фільтрів."""
         events_qs = self.get_visible_events_queryset(user, now)
 
         if filters.get("start_date") or filters.get("end_date"):
@@ -120,6 +158,7 @@ class SocialsService:
         )
 
     def _get_sharing_rows(self, user, filters: dict, sort_field: str):
+        """Формує QuerySet для запитів на шеринг у стрічці з урахуванням фільтрів поверху."""
         sharing_qs = SocialSharingRequest.objects.filter(status__status="ACTIVE")
 
         floor_filter = filters.get("floor_id")
@@ -139,6 +178,7 @@ class SocialsService:
         )
 
     def _parse_date_bounds(self, start_str, end_str):
+        """Парсить межі дати у часові мітки в межах дня."""
         current_timezone = timezone.get_current_timezone()
         start_dt, end_dt = None, None
 
@@ -154,25 +194,47 @@ class SocialsService:
         return start_dt, end_dt
 
     def get_visible_events_queryset(self, user, now):
+        """Формує QuerySet видимих для користувача подій з перевіркою обмежень (місця, факультет).
+
+        Args:
+            user: Користувач, який переглядає стрічку.
+            now: Поточний час.
+
+        Returns:
+            QuerySet: Лише видимі події.
+        """
         base_qs = SocialEvent.objects.filter(status__status="ACTIVE", end_time__gte=now)
 
+        # Адміністратор та модератор бачать усі події
         if user.is_admin or user.is_moderator:
             return base_qs
 
         user_faculty_id = self.get_faculty_id(user)
 
+        # Фільтр за спеціальністю та факультетом
         base_qs = base_qs.filter(Q(is_faculty_only=False) | Q(creator__major__faculty_id=user_faculty_id)).filter(
             Q(is_major_only=False) | Q(creator__major_id=user.major_id)
         )
 
         base_qs = base_qs.annotate(num_participants=Count("participants"))
 
+        # Звичайні користувачі не бачать заповнені події, якщо вони не є учасниками
         capacity_condition = Q(max_person__isnull=True) | Q(num_participants__lt=F("max_person")) | Q(participants=user)
         return base_qs.filter(capacity_condition).distinct()
 
     def resolve_feed_items(self, rows):
+        """Підтягує повні об'єкти з БД для вказаних ідентифікаторів стрічки.
+
+        Args:
+            rows: Список словників з типом та ID об'єктів.
+
+        Returns:
+            list: Кортежі вигляду (sort_time, item_type, item).
+        """
         event_ids = [row["item_id"] for row in rows if row["item_type"] == "event"]
         sharing_request_ids = [row["item_id"] for row in rows if row["item_type"] == "sharing_request"]
+
+        # Отримуємо дані пачками (in_bulk) для мінімізації запитів до БД
         events = (
             SocialEvent.objects.select_related(
                 "creator",
@@ -206,13 +268,31 @@ class SocialsService:
 
         return items
 
-    def create_event(self, user, validated_data):
+    def create_event(self, user, validated_data) -> SocialEvent:
+        """Створює нову соціальну подію та додає творця до учасників.
+
+        Args:
+            user: Творець події.
+            validated_data: Параметри події.
+
+        Returns:
+            SocialEvent: Створена подія.
+        """
         status = self.get_status("ACTIVE")
         event = SocialEvent.objects.create(creator=user, status=status, **validated_data)
         event.participants.add(user)
         return event
 
-    def get_event_detail(self, user, event_id):
+    def get_event_detail(self, user, event_id) -> SocialEvent:
+        """Отримує детальну інформацію про подію з перевіркою прав доступу.
+
+        Args:
+            user: Користувач, який запитує інформацію.
+            event_id: ID події.
+
+        Returns:
+            SocialEvent: Знайдена подія.
+        """
         try:
             event = (
                 SocialEvent.objects.select_related(
@@ -235,7 +315,8 @@ class SocialsService:
 
         return event
 
-    def get_sharing_request_detail(self, user, request_id):
+    def get_sharing_request_detail(self, user, request_id) -> SocialSharingRequest:
+        """Отримує детальну інформацію про запит на шеринг за його ID."""
         try:
             return SocialSharingRequest.objects.select_related(
                 "creator", "creator__room", "creator__room__floor", "status"
@@ -243,7 +324,16 @@ class SocialsService:
         except SocialSharingRequest.DoesNotExist as exc:
             raise SocialNotFoundError("Запит на шеринг з таким id не знайдено.") from exc
 
-    def join_event(self, user, event_id):
+    def join_event(self, user, event_id) -> SocialEvent:
+        """Приєднує користувача до події, перевіряючи ліміт місць та статус події.
+
+        Args:
+            user: Користувач, який приєднується.
+            event_id: ID події.
+
+        Returns:
+            SocialEvent: Оновлена подія.
+        """
         now = timezone.now()
 
         with transaction.atomic():
@@ -268,7 +358,16 @@ class SocialsService:
 
         return event
 
-    def leave_event(self, user, event_id):
+    def leave_event(self, user, event_id) -> SocialEvent:
+        """Вилучає користувача зі списку учасників події.
+
+        Args:
+            user: Користувач.
+            event_id: ID події.
+
+        Returns:
+            SocialEvent: Оновлена подія.
+        """
         try:
             event = SocialEvent.objects.prefetch_related("participants").get(id=event_id)
         except SocialEvent.DoesNotExist as exc:
@@ -278,6 +377,12 @@ class SocialsService:
         return event
 
     def delete_event(self, user, event_id):
+        """Скасовує (видаляє) подію з надсиланням системного сповіщення учасникам.
+
+        Args:
+            user: Користувач (творець події або адміністратор/модератор поверху).
+            event_id: ID події.
+        """
         try:
             event = (
                 SocialEvent.objects.select_related("creator", "room", "room__floor", "floor", "status")
@@ -318,11 +423,13 @@ class SocialsService:
 
                 self._send_system_announcement(user, users_to_notify, subject, message)
 
-    def create_sharing_request(self, user, validated_data):
+    def create_sharing_request(self, user, validated_data) -> SocialSharingRequest:
+        """Створює новий запит на шеринг речей."""
         status = self.get_status("ACTIVE")
         return SocialSharingRequest.objects.create(creator=user, status=status, **validated_data)
 
-    def complete_sharing_request(self, user, request_id):
+    def complete_sharing_request(self, user, request_id) -> SocialSharingRequest:
+        """Позначає запит на шеринг як успішно виконаний."""
         try:
             sharing_request = SocialSharingRequest.objects.select_related(
                 "creator", "creator__room", "creator__room__floor", "status"
@@ -337,7 +444,8 @@ class SocialsService:
         sharing_request.save(update_fields=["status"])
         return sharing_request
 
-    def delete_sharing_request(self, user, request_id):
+    def delete_sharing_request(self, user, request_id) -> SocialSharingRequest:
+        """Скасовує запит на шеринг."""
         try:
             sharing_request = SocialSharingRequest.objects.select_related(
                 "creator", "creator__room", "creator__room__floor", "status"
@@ -364,6 +472,7 @@ class SocialsService:
         return sharing_request
 
     def _send_system_announcement(self, actor, target_users, title, message):
+        """Допоміжний метод для надсилання системного сповіщення отримувачам."""
         try:
             target_type = TargetType.objects.get(type="SPECIFIC_USERS")
         except TargetType.DoesNotExist:
@@ -382,7 +491,8 @@ class SocialsService:
         except Exception as exc:
             raise SocialError("Не вдалося надіслати сповіщення користувачам. Видалення скасовано.") from exc
 
-    def get_actor_label(self, user):
+    def get_actor_label(self, user) -> str:
+        """Повертає назву ролі користувача для відображення у тексті сповіщень."""
         if user.is_admin:
             return "Адміністратор"
 
@@ -391,13 +501,15 @@ class SocialsService:
 
         return "Користувач"
 
-    def get_status(self, status_name):
+    def get_status(self, status_name) -> SocialSharingStatus:
+        """Отримує об'єкт статусу соціальної сутності за назвою."""
         try:
             return SocialSharingStatus.objects.get(status=status_name)
         except SocialSharingStatus.DoesNotExist as exc:
             raise SocialStatusNotFoundError(f"Статус {status_name} не знайдено в базі даних.") from exc
 
-    def can_view_event(self, user, event):
+    def can_view_event(self, user, event) -> bool:
+        """Перевіряє, чи має право користувач переглядати конкретну подію."""
         if user.is_admin or user.is_moderator:
             return True
 
@@ -417,24 +529,28 @@ class SocialsService:
 
         return True
 
-    def can_manage_event(self, user, event):
+    def can_manage_event(self, user, event) -> bool:
+        """Перевіряє, чи може користувач видаляти/редагувати подію."""
         if event.creator_id == user.id or user.is_admin:
             return True
 
         event_floor_id = self.get_event_floor_id(event)
         return self.can_moderate_floor(user, event_floor_id)
 
-    def can_manage_sharing_request(self, user, sharing_request):
+    def can_manage_sharing_request(self, user, sharing_request) -> bool:
+        """Перевіряє, чи може користувач видаляти/редагувати запит на шеринг."""
         if sharing_request.creator_id == user.id or user.is_admin:
             return True
 
         request_floor_id = self.get_user_floor_id(sharing_request.creator)
         return self.can_moderate_floor(user, request_floor_id)
 
-    def can_moderate_floor(self, user, floor_id):
+    def can_moderate_floor(self, user, floor_id) -> bool:
+        """Перевіряє, чи є користувач модератором вказаного поверху."""
         return bool(user.is_moderator and floor_id and self.get_user_floor_id(user) == floor_id)
 
     def get_event_floor_id(self, event):
+        """Отримує ID поверху події."""
         if event.floor_id:
             return event.floor_id
 
@@ -444,18 +560,29 @@ class SocialsService:
         return None
 
     def get_user_floor_id(self, user):
+        """Отримує ID поверху користувача."""
         if user.room_id:
             return user.room.floor_id
 
         return None
 
     def get_faculty_id(self, user):
+        """Отримує ID факультету користувача."""
         if user.major_id:
             return user.major.faculty_id
 
         return None
 
-    def get_user_social_profile(self, request_user, target_user_id):
+    def get_user_social_profile(self, request_user, target_user_id) -> dict:
+        """Повертає списки подій та шерингів для соціального профілю користувача з урахуванням прав доступу.
+
+        Args:
+            request_user: Користувач, який переглядає профіль.
+            target_user_id: ID користувача, чий профіль переглядається.
+
+        Returns:
+            dict: Списки створених подій, шерингів та подій, у яких користувач бере участь.
+        """
         from django.contrib.auth import get_user_model
 
         User = get_user_model()
@@ -509,7 +636,8 @@ class SocialsService:
             "participating_events": participating_events,
         }
 
-    def update_event(self, user, event_id, validated_data):
+    def update_event(self, user, event_id, validated_data) -> SocialEvent:
+        """Оновлює параметри соціальної події."""
         try:
             event = SocialEvent.objects.select_related("creator", "room", "room__floor", "floor", "status").get(
                 id=event_id
@@ -534,7 +662,8 @@ class SocialsService:
         event.save(update_fields=update_fields or None)
         return event
 
-    def update_sharing_request(self, user, request_id, validated_data):
+    def update_sharing_request(self, user, request_id, validated_data) -> SocialSharingRequest:
+        """Оновлює параметри запиту на шеринг."""
         try:
             sharing_request = SocialSharingRequest.objects.select_related(
                 "creator", "creator__room", "creator__room__floor", "status"

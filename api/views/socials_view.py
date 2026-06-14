@@ -30,6 +30,14 @@ from api.services.socials_service import (
 
 
 def get_social_error_status(exc):
+    """Повертає HTTP-статус на основі типу помилки соціальної функції.
+
+    Args:
+        exc: Екземпляр винятку SocialError чи його підкласів.
+
+    Returns:
+        int: Код HTTP-статусу (400, 403, 404 або 500).
+    """
     if isinstance(exc, SocialStatusNotFoundError):
         return status.HTTP_500_INTERNAL_SERVER_ERROR
 
@@ -46,6 +54,8 @@ def get_social_error_status(exc):
 
 
 class FeedView(APIView):
+    """Ендпоінт для отримання об'єднаної соціальної стрічки (події та запити на шеринг)."""
+
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
@@ -160,6 +170,16 @@ class FeedView(APIView):
         },
     )
     def get(self, request, page):
+        """Повертає сторінку соціальної стрічки з фільтрацією.
+
+        Args:
+            request: HTTP-запит із опціональними query params:
+                item_type, start_date, end_date, is_active, floor_id, ordering.
+            page: Номер сторінки стрічки.
+
+        Returns:
+            Response: Пагінований результат зі стрічкою.
+        """
         filters = {
             "item_type": request.query_params.get("item_type", "all"),
             "start_date": request.query_params.get("start_date"),
@@ -191,6 +211,8 @@ class FeedView(APIView):
 
 
 class SocialEventCreateView(APIView):
+    """Ендпоінт для створення соціальної події."""
+
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
@@ -263,6 +285,14 @@ class SocialEventCreateView(APIView):
         },
     )
     def post(self, request):
+        """Створює нову соціальну подію.
+
+        Args:
+            request: HTTP-запит із даними події (title, description, start_time, end_time тощо).
+
+        Returns:
+            Response: Дані створеної події або помилку валідації.
+        """
         serializer = SocialEventCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -273,6 +303,8 @@ class SocialEventCreateView(APIView):
 
 
 class SocialEventJoinView(APIView):
+    """Ендпоінт для приєднання до події."""
+
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
@@ -364,6 +396,15 @@ class SocialEventJoinView(APIView):
         },
     )
     def post(self, request, event_id):
+        """Додає поточного користувача до списку учасників події.
+
+        Args:
+            request: HTTP-запит.
+            event_id: Ідентифікатор події.
+
+        Returns:
+            Response: Оновлені дані події або помилку (немає місць, немає доступу).
+        """
         service = SocialsService()
 
         try:
@@ -376,6 +417,8 @@ class SocialEventJoinView(APIView):
 
 
 class SocialEventLeaveView(APIView):
+    """Ендпоінт для виходу користувача з події."""
+
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
@@ -440,6 +483,15 @@ class SocialEventLeaveView(APIView):
         },
     )
     def post(self, request, event_id):
+        """Прибирає поточного користувача зі списку учасників події.
+
+        Args:
+            request: HTTP-запит.
+            event_id: Ідентифікатор події.
+
+        Returns:
+            Response: Оновлені дані події або 404.
+        """
         service = SocialsService()
 
         try:
@@ -452,6 +504,8 @@ class SocialEventLeaveView(APIView):
 
 
 class SocialEventDetailView(APIView):
+    """Ендпоінт для перегляду, видалення та редагування соціальної події."""
+
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
@@ -537,6 +591,15 @@ class SocialEventDetailView(APIView):
         },
     )
     def get(self, request, event_id):
+        """Повертає повну інформацію про подію, включаючи список учасників.
+
+        Args:
+            request: HTTP-запит.
+            event_id: Ідентифікатор події.
+
+        Returns:
+            Response: Детальна інформація про подію або помилку доступу.
+        """
         service = SocialsService()
 
         try:
@@ -587,6 +650,15 @@ class SocialEventDetailView(APIView):
         },
     )
     def delete(self, request, event_id):
+        """Видаляє подію. Дозволено автору або адміністратору.
+
+        Args:
+            request: HTTP-запит.
+            event_id: Ідентифікатор події.
+
+        Returns:
+            Response: 204 No Content або помилку доступу.
+        """
         service = SocialsService()
 
         try:
@@ -696,6 +768,17 @@ class SocialEventDetailView(APIView):
         },
     )
     def patch(self, request, event_id):
+        """Частково або повністю оновлює подію.
+
+        Дозволено лише автору активної події.
+
+        Args:
+            request: HTTP-запит із полями для оновлення.
+            event_id: Ідентифікатор події.
+
+        Returns:
+            Response: Оновлені дані події або помилку.
+        """
         try:
             event_instance = SocialEvent.objects.get(id=event_id)
         except SocialEvent.DoesNotExist:
@@ -715,6 +798,8 @@ class SocialEventDetailView(APIView):
 
 
 class SocialSharingRequestCreateView(APIView):
+    """Ендпоінт для створення запиту на шеринг."""
+
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
@@ -778,6 +863,14 @@ class SocialSharingRequestCreateView(APIView):
         },
     )
     def post(self, request):
+        """Створює новий запит на шеринг від поточного користувача.
+
+        Args:
+            request: HTTP-запит із заголовком запиту.
+
+        Returns:
+            Response: Дані створеного запиту або помилку.
+        """
         serializer = SocialSharingRequestCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -793,6 +886,8 @@ class SocialSharingRequestCreateView(APIView):
 
 
 class SocialSharingRequestDoneView(APIView):
+    """Ендпоінт для позначення запиту на шеринг як виконаного (COMPLETED)."""
+
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
@@ -869,6 +964,15 @@ class SocialSharingRequestDoneView(APIView):
         },
     )
     def patch(self, request, request_id):
+        """Позначає запит на шеринг як виконаний.
+
+        Args:
+            request: HTTP-запит.
+            request_id: Ідентифікатор запиту на шеринг.
+
+        Returns:
+            Response: Оновлені дані запиту із статусом COMPLETED або помилку.
+        """
         service = SocialsService()
 
         try:
@@ -881,6 +985,8 @@ class SocialSharingRequestDoneView(APIView):
 
 
 class SocialSharingRequestDetailView(APIView):
+    """Ендпоінт для перегляду, редагування та видалення запиту на шеринг."""
+
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
@@ -956,6 +1062,15 @@ class SocialSharingRequestDetailView(APIView):
         },
     )
     def delete(self, request, request_id):
+        """Скасовує (видаляє) запит на шеринг.
+
+        Args:
+            request: HTTP-запит.
+            request_id: Ідентифікатор запиту на шеринг.
+
+        Returns:
+            Response: Дані скасованого запиту або помилку доступу.
+        """
         service = SocialsService()
 
         try:
@@ -1018,6 +1133,15 @@ class SocialSharingRequestDetailView(APIView):
         },
     )
     def get(self, request, request_id):
+        """Повертає детальну інформацію про запит на шеринг.
+
+        Args:
+            request: HTTP-запит.
+            request_id: Ідентифікатор запиту на шеринг.
+
+        Returns:
+            Response: Деталі запиту або 404.
+        """
         service = SocialsService()
 
         try:
@@ -1110,6 +1234,17 @@ class SocialSharingRequestDetailView(APIView):
         },
     )
     def patch(self, request, request_id):
+        """Частково або повністю оновлює запит на шеринг.
+
+        Дозволено лише автору активного запиту.
+
+        Args:
+            request: HTTP-запит із полями для оновлення.
+            request_id: Ідентифікатор запиту на шеринг.
+
+        Returns:
+            Response: Оновлені дані запиту або помилку.
+        """
         try:
             sharing_instance = SocialSharingRequest.objects.get(id=request_id)
         except SocialSharingRequest.DoesNotExist:
@@ -1129,6 +1264,8 @@ class SocialSharingRequestDetailView(APIView):
 
 
 class UserSocialProfileView(APIView):
+    """Ендпоінт для отримання соціальної активності конкретного користувача."""
+
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
@@ -1197,6 +1334,15 @@ class UserSocialProfileView(APIView):
         },
     )
     def get(self, request, user_id):
+        """Повертає соціальну активність користувача: його запити, створені та заплановані події.
+
+        Args:
+            request: HTTP-запит.
+            user_id: UUID користувача, чия активність запитується.
+
+        Returns:
+            Response: Три списки — sharing_requests, created_events, participating_events.
+        """
         service = SocialsService()
 
         try:

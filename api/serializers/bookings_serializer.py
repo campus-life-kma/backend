@@ -8,6 +8,8 @@ from api.serializers.user_serializer import UserMapSerializer
 
 
 class BookingCreateSerializer(serializers.Serializer):
+    """Серіалізатор для створення нового бронювання ресурсу з бізнес-валідацією тривалості."""
+
     max_booking_duration = timedelta(hours=3)
     max_booking_advance = timedelta(days=30)
 
@@ -36,6 +38,7 @@ class BookingCreateSerializer(serializers.Serializer):
     )
 
     def validate(self, attrs):
+        """Перевіряє коректність часових рамок бронювання."""
         now = timezone.now()
 
         if attrs["start_time"] < now:
@@ -44,9 +47,11 @@ class BookingCreateSerializer(serializers.Serializer):
         if attrs["end_time"] <= attrs["start_time"]:
             raise serializers.ValidationError({"end_time": "Час завершення має бути пізніше часу початку."})
 
+        # Обмеження на максимальну тривалість бронювання (3 години)
         if attrs["end_time"] - attrs["start_time"] > self.max_booking_duration:
             raise serializers.ValidationError({"end_time": "Бронювання не може тривати довше 3 годин."})
 
+        # Бронювання не більше ніж на 30 днів вперед
         if attrs["start_time"] > now + self.max_booking_advance:
             raise serializers.ValidationError(
                 {"start_time": "Не можна створювати бронювання більше ніж на 30 днів уперед."}
@@ -56,6 +61,8 @@ class BookingCreateSerializer(serializers.Serializer):
 
 
 class BookingSerializer(serializers.ModelSerializer):
+    """Детальний серіалізатор для виведення інформації про бронювання."""
+
     user = UserMapSerializer(read_only=True, help_text="Користувач, який створив бронювання")
     cancelled_by = UserMapSerializer(read_only=True, help_text="Користувач, який скасував бронювання")
     resource_id = serializers.IntegerField(source="resource.id", read_only=True, help_text="ID ресурсу")
@@ -83,6 +90,8 @@ class BookingSerializer(serializers.ModelSerializer):
 
 
 class BookingUpdateSerializer(serializers.Serializer):
+    """Серіалізатор для оновлення часу існуючого бронювання."""
+
     max_booking_duration = timedelta(hours=3)
     max_booking_advance = timedelta(days=30)
 
@@ -94,6 +103,7 @@ class BookingUpdateSerializer(serializers.Serializer):
     )
 
     def validate(self, attrs):
+        """Валідує новий часовий діапазон бронювання."""
         now = timezone.now()
 
         if attrs["start_time"] < now:
@@ -114,6 +124,8 @@ class BookingUpdateSerializer(serializers.Serializer):
 
 
 class ResourceScheduleSerializer(serializers.ModelSerializer):
+    """Полегшений серіалізатор для виведення розкладу бронювань ресурсу."""
+
     booking_id = serializers.IntegerField(source="id", read_only=True, help_text="ID бронювання")
     status = serializers.CharField(source="status.status", read_only=True, help_text="Статус бронювання")
     user = UserMapSerializer(read_only=True, help_text="Користувач, який створив бронювання")
@@ -124,6 +136,8 @@ class ResourceScheduleSerializer(serializers.ModelSerializer):
 
 
 class ResourceBlockSerializer(serializers.ModelSerializer):
+    """Серіалізатор блокування/розблокування та виведення деталей ресурсу."""
+
     room_id = serializers.IntegerField(source="room.id", read_only=True, help_text="ID кімнати ресурсу")
     room_name = serializers.CharField(source="room.name", read_only=True, help_text="Назва кімнати ресурсу")
 
