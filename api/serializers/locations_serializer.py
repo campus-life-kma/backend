@@ -107,6 +107,18 @@ class RoomUpdateSerializer(serializers.ModelSerializer):
         model = Room
         fields = ["name", "room_type", "max_person", "is_blocked"]
 
+    def validate_name(self, value):
+        if value is not None:
+            value = value.strip()
+            if not value:
+                raise serializers.ValidationError("Назва не може бути порожньою.")
+        return value
+
+    def validate_max_person(self, value):
+        if value is not None and (value < 0 or value > 100):
+            raise serializers.ValidationError("Місткість кімнати має бути в межах від 0 до 100 осіб.")
+        return value
+
 
 class RoomCreateSerializer(serializers.ModelSerializer):
     room_type = serializers.PrimaryKeyRelatedField(
@@ -154,6 +166,18 @@ class RoomCreateSerializer(serializers.ModelSerializer):
             },
         }
 
+    def validate_name(self, value):
+        if value is not None:
+            value = value.strip()
+            if not value:
+                raise serializers.ValidationError("Вкажіть назву кімнати.")
+        return value
+
+    def validate_max_person(self, value):
+        if value is not None and (value < 0 or value > 100):
+            raise serializers.ValidationError("Місткість кімнати має бути в межах від 0 до 100 осіб.")
+        return value
+
 
 class ResourceCreateUpdateSerializer(serializers.ModelSerializer):
     resource_type = serializers.PrimaryKeyRelatedField(
@@ -163,3 +187,15 @@ class ResourceCreateUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Resource
         fields = ["name", "max_person", "is_blocked", "resource_type"]
+
+    def validate_name(self, value):
+        if value is not None:
+            value = value.strip()
+            if not value:
+                raise serializers.ValidationError("Вкажіть назву ресурсу.")
+        return value
+
+    def validate_max_person(self, value):
+        if value is not None and (value < 1 or value > 100):
+            raise serializers.ValidationError("Місткість ресурсу повинна бути в межах від 1 до 100 осіб.")
+        return value

@@ -271,6 +271,59 @@ class RoomBlockApiTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
+    def test_admin_cannot_create_resource_with_invalid_capacity(self):
+        self.client.force_authenticate(user=self.admin)
+        response = self.client.post(
+            reverse("resource-create", args=[self.room.id]),
+            {
+                "name": "Нова пралка",
+                "resource_type": self.washer_type.id,
+                "max_person": 101,
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_admin_cannot_create_resource_with_blank_name(self):
+        self.client.force_authenticate(user=self.admin)
+        response = self.client.post(
+            reverse("resource-create", args=[self.room.id]),
+            {
+                "name": "   ",
+                "resource_type": self.washer_type.id,
+                "max_person": 1,
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_admin_cannot_update_resource_with_invalid_capacity(self):
+        self.client.force_authenticate(user=self.admin)
+        response = self.client.patch(
+            reverse("resource-detail", args=[self.kitchen_resource.id]),
+            {"max_person": 150},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_admin_cannot_update_room_with_invalid_capacity(self):
+        self.client.force_authenticate(user=self.admin)
+        response = self.client.patch(
+            reverse("room-update", args=[self.room.id]),
+            {"max_person": 101},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_admin_cannot_update_room_with_blank_name(self):
+        self.client.force_authenticate(user=self.admin)
+        response = self.client.patch(
+            reverse("room-update", args=[self.room.id]),
+            {"name": "   "},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
 
 class RoomCreateApiTests(APITestCase):
     def setUp(self):
@@ -383,3 +436,4 @@ class RoomCreateApiTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
