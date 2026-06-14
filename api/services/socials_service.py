@@ -146,16 +146,20 @@ class SocialsService:
         return start_dt, end_dt
 
     def get_visible_events_queryset(self, user, now):
-        base_qs = SocialEvent.objects.filter(status__status="ACTIVE", end_time__gte=now)
+        base_qs = SocialEvent.objects.annotate(num_participants=Count("participants", distinct=True)).filter(
+            status__status="ACTIVE", end_time__gte=now
+        )
 
-        if user.is_admin:
+        if not (user.is_admin or user.is_moderator):
+            user_faculty_id = self.get_faculty_id(user)
+            base_qs = base_qs.filter(Q(is_faculty_only=False) | Q(creator__major__faculty_id=user_faculty_id)).filter(
+                Q(is_major_only=False) | Q(creator__major_id=user.major_id)
+            )
+
+        if user.is_admin or user.is_moderator:
             return base_qs
 
-        user_faculty_id = self.get_faculty_id(user)
-
-        return base_qs.filter(Q(is_faculty_only=False) | Q(creator__major__faculty_id=user_faculty_id)).filter(
-            Q(is_major_only=False) | Q(creator__major_id=user.major_id)
-        )
+        return base_qs.filter(Q(max_person=0) | Q(num_participants__lt=F("max_person")) | Q(participants=user))
 
     def resolve_feed_items(self, rows):
         event_ids = [row["item_id"] for row in rows if row["item_type"] == "event"]
@@ -372,6 +376,9 @@ class SocialsService:
             raise SocialStatusNotFoundError(f"Статус {status_name} не знайдено в базі даних.") from exc
 
     def can_view_event(self, user, event):
+        if user.is_admin or user.is_moderator:
+            return True
+
         if event.is_faculty_only and self.get_faculty_id(user) != self.get_faculty_id(event.creator):
             return False
 
@@ -440,7 +447,7 @@ class SocialsService:
             "creator", "creator__major", "creator__major__faculty", "room", "room__floor", "floor", "status"
         )
 
-        if request_user.is_admin:
+        if request_user.is_admin or request_user.is_moderator:
             visible_events = base_events_qs
         else:
             user_faculty_id = self.get_faculty_id(request_user)

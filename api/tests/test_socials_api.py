@@ -88,6 +88,14 @@ class SocialsApiTests(APITestCase):
             major=self.major,
             is_activated=True,
         )
+        self.admin = User.objects.create(
+            email="social-admin@ukma.edu.ua",
+            full_name="Адміністратор",
+            role=self.admin_role,
+            room=self.home_room,
+            major=self.major,
+            is_activated=True,
+        )
 
         self.client.force_authenticate(user=self.user)
 
@@ -311,3 +319,60 @@ class SocialsApiTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_feed_hides_full_events_unless_user_is_participant(self):
+        full_event = self.create_event(max_person=1)
+        full_event.participants.add(self.other_user)
+
+        response = self.client.get(reverse("feed", kwargs={"page": 1}))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        event_ids = [item["id"] for item in response.data["results"] if item["type"] == "event"]
+        self.assertNotIn(full_event.id, event_ids)
+
+        full_event.participants.add(self.user)
+        response = self.client.get(reverse("feed", kwargs={"page": 1}))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        event_ids = [item["id"] for item in response.data["results"] if item["type"] == "event"]
+        self.assertIn(full_event.id, event_ids)
+
+        full_event_mod = self.create_event(max_person=1, creator=self.other_user)
+        full_event_mod.participants.add(self.other_user)
+        self.client.force_authenticate(user=self.moderator)
+        response = self.client.get(reverse("feed", kwargs={"page": 1}))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        event_ids = [item["id"] for item in response.data["results"] if item["type"] == "event"]
+        self.assertIn(full_event_mod.id, event_ids)
+        self.client.force_authenticate(user=self.admin)
+        response = self.client.get(reverse("feed", kwargs={"page": 1}))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        event_ids = [item["id"] for item in response.data["results"] if item["type"] == "event"]
+        self.assertIn(full_event_mod.id, event_ids)
+
+    def test_admin_moderator_bypass_faculty_major_feed(self):
+        foreign_faculty_event = self.create_event(creator=self.other_user, is_faculty_only=True)
+        foreign_major_event = self.create_event(creator=self.other_user, is_major_only=True)
+
+        self.client.force_authenticate(user=self.moderator)
+        response = self.client.get(reverse("feed", kwargs={"page": 1}))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        event_ids = [item["id"] for item in response.data["results"] if item["type"] == "event"]
+        self.assertIn(foreign_faculty_event.id, event_ids)
+        self.assertIn(foreign_major_event.id, event_ids)
+
+        self.client.force_authenticate(user=self.admin)
+        response = self.client.get(reverse("feed", kwargs={"page": 1}))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        event_ids = [item["id"] for item in response.data["results"] if item["type"] == "event"]
+        self.assertIn(foreign_faculty_event.id, event_ids)
+        self.assertIn(foreign_major_event.id, event_ids)
+
+    def test_admin_moderator_can_view_foreign_faculty_major_event(self):
+        foreign_event = self.create_event(creator=self.other_user, is_faculty_only=True)
+
+        self.client.force_authenticate(user=self.moderator)
+        response = self.client.get(reverse("event-detail", kwargs={"event_id": foreign_event.id}))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.client.force_authenticate(user=self.admin)
+        response = self.client.get(reverse("event-detail", kwargs={"event_id": foreign_event.id}))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
