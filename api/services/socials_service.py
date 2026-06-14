@@ -109,11 +109,15 @@ class SocialsService:
             if target_floor_id:
                 events_qs = events_qs.filter(Q(floor_id=target_floor_id) | Q(room__floor_id=target_floor_id))
 
-        return events_qs.annotate(
-            item_type=Value("event", output_field=CharField()),
-            item_id=F("id"),
-            sort_time=F(sort_field),
-        ).values("item_type", "item_id", "sort_time")
+        return (
+            events_qs.annotate(
+                item_type=Value("event", output_field=CharField()),
+                item_id=F("id"),
+                sort_time=F(sort_field),
+            )
+            .values("item_type", "item_id", "sort_time")
+            .distinct()
+        )
 
     def _get_sharing_rows(self, user, filters: dict, sort_field: str):
         sharing_qs = SocialSharingRequest.objects.filter(status__status="ACTIVE")
@@ -124,11 +128,15 @@ class SocialsService:
             if target_floor_id:
                 sharing_qs = sharing_qs.filter(creator__room__floor_id=target_floor_id)
 
-        return sharing_qs.annotate(
-            item_type=Value("sharing_request", output_field=CharField()),
-            item_id=F("id"),
-            sort_time=F(sort_field),
-        ).values("item_type", "item_id", "sort_time")
+        return (
+            sharing_qs.annotate(
+                item_type=Value("sharing_request", output_field=CharField()),
+                item_id=F("id"),
+                sort_time=F(sort_field),
+            )
+            .values("item_type", "item_id", "sort_time")
+            .distinct()
+        )
 
     def _parse_date_bounds(self, start_str, end_str):
         current_timezone = timezone.get_current_timezone()
@@ -160,7 +168,7 @@ class SocialsService:
         base_qs = base_qs.annotate(num_participants=Count("participants"))
 
         capacity_condition = Q(max_person__isnull=True) | Q(num_participants__lt=F("max_person")) | Q(participants=user)
-        return base_qs.filter(capacity_condition)
+        return base_qs.filter(capacity_condition).distinct()
 
     def resolve_feed_items(self, rows):
         event_ids = [row["item_id"] for row in rows if row["item_type"] == "event"]
@@ -486,11 +494,12 @@ class SocialsService:
             )
             visible_events = visible_events.filter(capacity_condition)
 
-        created_events = visible_events.filter(creator=target_user).order_by("-start_time")
+        created_events = visible_events.filter(creator=target_user).distinct().order_by("-start_time")
 
         participating_events = (
             visible_events.filter(participants=target_user, status__status="ACTIVE", end_time__gt=now)
             .exclude(creator=target_user)
+            .distinct()
             .order_by("start_time")
         )
 
