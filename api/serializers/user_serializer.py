@@ -248,6 +248,8 @@ class AnnouncementRecipientSerializer(serializers.ModelSerializer):
             "faculty_name",
             "major_name",
             "year",
+            "is_activated",
+            "position",
         ]
 
     @extend_schema_field(serializers.CharField)

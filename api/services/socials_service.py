@@ -411,7 +411,9 @@ class SocialsService:
 
         with transaction.atomic():
             event.status = self.get_status("CANCELLED")
-            event.save(update_fields=["status"])
+            if user.id != creator_id:
+                event.cancelled_by = user
+            event.save(update_fields=["status", "cancelled_by"])
 
             if users_to_notify:
                 subject = f"Скасування події: {event_title}"
@@ -465,7 +467,9 @@ class SocialsService:
 
         with transaction.atomic():
             sharing_request.status = self.get_status("CANCELLED")
-            sharing_request.save(update_fields=["status"])
+            if user.id != sharing_request.creator.id:
+                sharing_request.cancelled_by = user
+            sharing_request.save(update_fields=["status", "cancelled_by"])
 
             if user.id != sharing_request.creator.id:
                 actor_label = self.get_actor_label(user)

@@ -94,6 +94,16 @@ class PresenceStatisticsSerializer(serializers.Serializer):
     active = serializers.IntegerField(help_text="Кількість активних позначок присутності")
 
 
+class ModeratorActionSerializer(serializers.Serializer):
+    """Серіалізатор дій (скасувань) конкретного модератора."""
+
+    moderator_id = serializers.IntegerField(help_text="ID модератора")
+    moderator_name = serializers.CharField(help_text="Ім'я модератора")
+    cancelled_events = serializers.IntegerField(help_text="Кількість скасованих модератором івентів")
+    cancelled_sharings = serializers.IntegerField(help_text="Кількість скасованих модератором запитів на шеринг")
+    cancelled_bookings = serializers.IntegerField(help_text="Кількість скасованих модератором бронювань")
+
+
 class StatisticsSummarySerializer(serializers.Serializer):
     """Консолідуючий серіалізатор для всього звіту статистики гуртожитку."""
 
@@ -105,3 +115,4 @@ class StatisticsSummarySerializer(serializers.Serializer):
     social = SocialStatisticsSerializer(help_text="Статистика соціальної активності")
     announcements = AnnouncementsStatisticsSerializer(help_text="Статистика оголошень")
     presence = PresenceStatisticsSerializer(help_text="Статистика присутності")
+    moderator_actions = ModeratorActionSerializer(many=True, required=False, help_text="Дії модераторів (тільки для адміністратора)")

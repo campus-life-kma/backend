@@ -103,20 +103,24 @@ class AnnouncementsService:
         if not user.is_admin and not user.is_moderator:
             raise AnnouncementPermissionDeniedError("У вас немає прав для перегляду адресатів оголошень.")
 
-        recipients = self.get_recipient_base_queryset()
+        recipients = self.get_recipient_base_queryset(filters)
         recipients = self.scope_recipients_for_user(user, recipients, filters)
         recipients = self.apply_recipient_filters(recipients, filters)
         recipients = self.apply_recipient_search(recipients, filters.get("q"))
         ordering = filters.get("ordering") or "display_name"
         return recipients.order_by(*self.get_recipient_ordering(ordering))
 
-    def get_recipient_base_queryset(self):
-        """Формує базовий QuerySet для потенційних отримувачів оголошень."""
-        return (
-            User.objects.filter(is_activated=True)
-            .exclude(email="")
-            .select_related("role", "room", "room__floor", "room__floor__dormitory", "major", "major__faculty")
+    def get_recipient_base_queryset(self, filters=None):
+        """Повертає базовий QuerySet для потенційних адресатів оголошення."""
+        queryset = User.objects.exclude(email="").select_related(
+            "role", "room", "room__floor", "room__floor__dormitory", "major", "major__faculty"
         )
+        
+        # За замовчуванням для оголошень повертаємо лише активованих
+        if filters is None or "is_active" not in filters:
+            queryset = queryset.filter(is_activated=True)
+            
+        return queryset
 
     def scope_recipients_for_user(self, user, recipients, filters):
         """Обмежує область видимості адресатів залежно від ролі користувача (модератор чи адмін).
@@ -149,12 +153,18 @@ class AnnouncementsService:
             "major_id": "major_id",
             "role": "role__name",
             "year": "year",
+            "position": "position",
         }
 
         for filter_key, query_key in filter_map.items():
             value = filters.get(filter_key)
             if value:
                 recipients = recipients.filter(**{query_key: value})
+
+        is_active = filters.get("is_active")
+        if is_active is not None and str(is_active).lower() != "all":
+            is_active_bool = str(is_active).lower() == "true"
+            recipients = recipients.filter(is_activated=is_active_bool)
 
         return recipients
 

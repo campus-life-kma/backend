@@ -297,6 +297,8 @@ class AnnouncementRecipientsView(APIView):
             "q": query_params.get("q", "").strip(),
             "ordering": query_params.get("ordering", "").strip(),
             "role": query_params.get("role", "").strip(),
+            "position": query_params.get("position", "").strip(),
+            "is_active": query_params.get("is_active", "").strip(),
         }
 
         for key in ["floor_id", "room_id", "faculty_id", "major_id", "year"]:

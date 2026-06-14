@@ -102,7 +102,7 @@ class StatisticsService:
         active_social_filter = Q(status__status="ACTIVE")
         cancelled_social_filter = Q(status__status="CANCELLED")
 
-        return {
+        result = {
             "scope": self.build_scope(user=user, floors=floors, scope_type=scope_type),
             "residents": {
                 "total": users.count(),
@@ -159,6 +159,21 @@ class StatisticsService:
                 "active": presences.count(),
             },
         }
+
+        if user.is_admin:
+            moderators = User.objects.filter(role__name="MODERATOR", is_activated=True)
+            moderator_actions = []
+            for mod in moderators:
+                moderator_actions.append({
+                    "moderator_id": mod.id,
+                    "moderator_name": mod.full_name or mod.email,
+                    "cancelled_events": SocialEvent.objects.filter(cancelled_by=mod).count(),
+                    "cancelled_sharings": SocialSharingRequest.objects.filter(cancelled_by=mod).count(),
+                    "cancelled_bookings": Booking.objects.filter(cancelled_by=mod).count(),
+                })
+            result["moderator_actions"] = moderator_actions
+
+        return result
 
     def build_scope(self, user: User, floors, scope_type: str) -> dict:
         """Будує метадані області перегляду статистики."""

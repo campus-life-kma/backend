@@ -71,6 +71,15 @@ class SocialEvent(models.Model):
         help_text="Список мешканців, які підтвердили свою участь",
     )
 
+    cancelled_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="cancelled_events",
+        help_text="Користувач (модератор/адмін), який заблокував/скасував івент",
+    )
+
     class Meta:
         constraints = [
             # Захист на рівні бази даних — подія обов'язково повинна мати локацію
@@ -123,6 +132,15 @@ class SocialSharingRequest(models.Model):
         on_delete=models.PROTECT,
         related_name="requests",
         help_text="Поточний стан запиту (актуальний чи вже закритий)",
+    )
+
+    cancelled_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="cancelled_sharing_requests",
+        help_text="Користувач (модератор/адмін), який заблокував/скасував запит",
     )
 
     def __str__(self):
