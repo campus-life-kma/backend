@@ -120,6 +120,16 @@ class RoomUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Room
         fields = ["name", "room_type", "max_person", "is_blocked"]
+        extra_kwargs = {
+            "max_person": {
+                "max_value": 100,
+                "min_value": 0,
+                "error_messages": {
+                    "max_value": "Місткість кімнати має бути в межах від 0 до 100 осіб.",
+                    "min_value": "Місткість кімнати має бути в межах від 0 до 100 осіб.",
+                },
+            }
+        }
 
     def validate_name(self, value: str) -> str:
         """Перевіряє, щоб назва кімнати не була пустою після очищення пробілів."""
@@ -127,12 +137,6 @@ class RoomUpdateSerializer(serializers.ModelSerializer):
             value = value.strip()
             if not value:
                 raise serializers.ValidationError("Назва не може бути порожньою.")
-        return value
-
-    def validate_max_person(self, value: int) -> int:
-        """Перевіряє, щоб місткість кімнати була в межах [0, 100]."""
-        if value is not None and (value < 0 or value > 100):
-            raise serializers.ValidationError("Місткість кімнати має бути в межах від 0 до 100 осіб.")
         return value
 
 
@@ -172,10 +176,13 @@ class RoomCreateSerializer(serializers.ModelSerializer):
         fields = ["name", "room_type", "max_person", "is_blocked", "svg_element_id"]
         extra_kwargs = {
             "max_person": {
+                "max_value": 100,
+                "min_value": 0,
                 "help_text": "Максимальна місткість кімнати",
                 "error_messages": {
                     "invalid": "Місткість має бути числом.",
-                    "min_value": "Місткість не може бути меншою за 0.",
+                    "min_value": "Місткість кімнати має бути в межах від 0 до 100 осіб.",
+                    "max_value": "Місткість кімнати має бути в межах від 0 до 100 осіб.",
                     "required": "Вкажіть місткість кімнати.",
                 },
             },
@@ -192,12 +199,6 @@ class RoomCreateSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError("Вкажіть назву кімнати.")
         return value
 
-    def validate_max_person(self, value: int) -> int:
-        """Перевіряє, щоб ліміт місткості кімнати при створенні був у межах [0, 100]."""
-        if value is not None and (value < 0 or value > 100):
-            raise serializers.ValidationError("Місткість кімнати має бути в межах від 0 до 100 осіб.")
-        return value
-
 
 class ResourceCreateUpdateSerializer(serializers.ModelSerializer):
     """Серіалізатор для створення та редагування ресурсу кімнати."""
@@ -209,6 +210,16 @@ class ResourceCreateUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Resource
         fields = ["name", "max_person", "is_blocked", "resource_type"]
+        extra_kwargs = {
+            "max_person": {
+                "max_value": 100,
+                "min_value": 1,
+                "error_messages": {
+                    "max_value": "Місткість ресурсу повинна бути в межах від 1 до 100 осіб.",
+                    "min_value": "Місткість ресурсу повинна бути в межах від 1 до 100 осіб.",
+                },
+            }
+        }
 
     def validate_name(self, value: str) -> str:
         """Валідує назву ресурсу (без пробілів)."""
@@ -216,10 +227,4 @@ class ResourceCreateUpdateSerializer(serializers.ModelSerializer):
             value = value.strip()
             if not value:
                 raise serializers.ValidationError("Вкажіть назву ресурсу.")
-        return value
-
-    def validate_max_person(self, value: int) -> int:
-        """Перевіряє, щоб ліміт використання ресурсу був у межах [1, 100]."""
-        if value is not None and (value < 1 or value > 100):
-            raise serializers.ValidationError("Місткість ресурсу повинна бути в межах від 1 до 100 осіб.")
         return value
