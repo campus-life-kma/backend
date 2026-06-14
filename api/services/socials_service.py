@@ -219,7 +219,12 @@ class SocialsService:
         base_qs = base_qs.annotate(num_participants=Count("participants"))
 
         # Звичайні користувачі не бачать заповнені події, якщо вони не є учасниками
-        capacity_condition = Q(max_person__isnull=True) | Q(num_participants__lt=F("max_person")) | Q(participants=user)
+        capacity_condition = (
+            Q(max_person__isnull=True)
+            | Q(max_person=0)
+            | Q(num_participants__lt=F("max_person"))
+            | Q(participants=user)
+        )
         return base_qs.filter(capacity_condition).distinct()
 
     def resolve_feed_items(self, rows):
@@ -519,7 +524,7 @@ class SocialsService:
         if event.is_major_only and user.major_id != event.creator.major_id:
             return False
 
-        if event.max_person is not None:
+        if event.max_person is not None and event.max_person > 0:
             participants_count = event.participants.count()
             if participants_count >= event.max_person:
                 is_participant = event.participants.filter(id=user.id).exists()
@@ -615,6 +620,7 @@ class SocialsService:
             visible_events = visible_events.annotate(num_participants=Count("participants"))
             capacity_condition = (
                 Q(max_person__isnull=True)
+                | Q(max_person=0)
                 | Q(num_participants__lt=F("max_person"))
                 | Q(participants=request_user)
                 | Q(creator=request_user)
