@@ -1,83 +1,101 @@
-# Campus Life - Backend
-Серце системи управління гуртожитком. Цей сервіс забезпечує роботу інтерактивної карти (SVG), систему бронювання приміщень (пральні, коворкінги) та менеджмент студентів.
+# Campus Life — Backend API
 
-## Технологічний стек:
- - **Мова:** Python 3.14.
- - **Фреймворк:** Django 6.0 + Django REST Framework.
- - **База даних:** PostgreSQL 17.
- - **Контейнеризація:** Docker + Docker Compose.
- - **Якість коду:** Black (formatter), Flake8 (linter).
+Серверна частина вебплатформи **«Campus Life»** — інтерактивного цифрового двійника студентського гуртожитку. Забезпечує REST API для роботи з інтерактивною картою, бронювання спільних ресурсів, керування присутністю мешканців, стрічкою новин та оголошень.
+
+---
+
+##  Технологічний стек
+* **Мова програмування:** Python 3.14
+* **Фреймворк:** Django 6.0 + Django REST Framework (DRF)
+* **База даних:** PostgreSQL 17
+* **Специфікація API:** OpenAPI 3.0 (drf-spectacular) / Swagger & Redoc
+* **Контейнеризація:** Docker + Docker Compose
+* **Форматування та лінтування:** Black + Flake8
+
+---
 
 ## Структура проєкту
- - `api/` - Логіка додатка (моделі, сервіси, в'юшки)
- - `core/` - Налаштування проєкту (settings, urls)
- - `venv/` - Віртуальне середовище
- - `.env` - Конфіденційні дані
- - `Dockerfile` - Конфігурація образу бекенду
- - `docker-compose.yml` - Оркестрація БД, Бекенду та Фронтенду
+* `api/` — основна логіка Django-додатка:
+  * `models/` — моделі бази даних (користувачі, кімнати, івенти, бронювання).
+  * `services/` — сервісний шар бізнес-логіки (окремо від представлень).
+  * `serializers/` — серіалізатори REST Framework для валідації та представлення даних.
+  * `views/` — представлення (APIViews) та ендпоінти.
+  * `tests/` — комплексні юніт-тести API.
+  * `admin.py` — конфігурація Django Admin панелі.
+* `core/` — глобальні налаштування Django проєкту (settings, urls).
+* `media/` — статичні медіафайли (плани поверхів, аватари користувачів).
 
-## Запуск за допомогою Docker
-0. **Prerequisites:** [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+---
 
-1. **Налаштуйте змінні оточення:** Створіть файл `.env` на основі `.env.example`.
+## Встановлення та запуск
 
-2. **Запустіть систему:**
+### 1. Запуск через Docker Compose (рекомендовано)
+Детальна інструкція з розгортання всього середовища знаходиться у файлі **INSTALLATION.docx** / **INSTALLATION.pdf** в корені проєкту.
+
+Запуск контейнера бекенду (виконується з папки `backend`):
 ```bash
-docker-compose up --build -d
+docker compose up backend --build -d
 ```
 
-3. **Виконайте міграції:**
-
+Виконання міграцій та створення тестових даних:
 ```bash
-docker-compose exec backend python manage.py migrate
+# Міграції
+docker compose exec backend python manage.py migrate
+
+# Тестові дані розробника
+docker compose exec backend python manage.py seed_dev
+
+# Симуляція великого навантаження (велика база даних)
+docker compose exec backend python manage.py seed_massive_data
 ```
 
-4. **За бажанням можете виконати міграцію з тестовим набором даних**
-```bash
-docker-compose exec backend python manage.py seed_dev
-```
-Або для симуляції великого навантаження та великої кількості даних:
-```bash
-docker-compose exec backend python manage.py seed_massive_data
-```
+Адреси доступу:
+* **API ендпоінти:** [http://localhost:8888](http://localhost:8888)
+* **Swagger документація:** [http://localhost:8888/api/docs/](http://localhost:8888/api/docs/)
+* **Redoc документація:** [http://localhost:8888/api/redoc/](http://localhost:8888/api/redoc/)
 
-5. **Доступи:**
-   - Бекенд: http://localhost:8888
-   - Swagger: http://localhost:8888/api/docs/
-   - Redoc: http://localhost:8888/api/redoc/
+---
 
-## Локальний запуск (без Docker)
-Цей варіант підходить для швидкої розробки та дебагу самого Python-коду.
+### 2. Локальний запуск (без Docker)
+Для швидкої розробки та дебагу Python-коду:
 
-0. **Prerequisites:** [Python 3.14](https://www.python.org/downloads/release/python-3145/); [PostgreSQL 17](https://www.postgresql.org/download/) або [Docker Desktop](https://www.docker.com/products/docker-desktop/)
-
-1. Активуйте віртуальне середовище:
-```bash
-# Windows
-.\venv\Scripts\activate
-```
-
+1. Створіть та активуйте віртуальне середовище:
+   ```bash
+   # Windows (PowerShell)
+   python -m venv venv
+   .\venv\Scripts\activate
+   ```
 2. Встановіть залежності:
-```bash
-pip install -r requirements.txt
-```
+   ```bash
+   pip install -r requirements.txt
+   ```
+3. Налаштуйте файл `.env` на основі `.env.example` (вказавши правильні хости для БД).
+4. Виконайте міграції та запустіть Django-сервер:
+   ```bash
+   python manage.py migrate
+   python manage.py runserver 8888
+   ```
 
-3. Налаштуйте .env для локальної роботи:
-База даних все одно має бути запущена в Docker, (або встановлена локально).
+---
 
-4. Запустіть сервер:
-```bash
-python manage.py runserver 8888
-```
+## Якість коду та стандарти розробки
+Перед кожним комітом обов'язково запускайте перевірку лінтером та автоформатування коду.
 
-## Чистота коду
-Ми використовуємо суворі стандарти для підтримання якості коду. Виконуйте ці команди перед кожним комітом:
- - Форматування (Black):
+### 1. Автоформатування коду (Black):
 ```bash
 black .
 ```
- - Перевірка лінтером (Flake8):
+
+### 2. Перевірка стилю лінтером (Flake8):
 ```bash
 flake8 .
 ```
 
+### 3. Запуск автоматичних тестів:
+```bash
+# У локальному середовищі:
+.\venv\Scripts\python.exe manage.py test
+
+# Або всередині Docker-контейнера:
+docker compose exec backend python manage.py test
+```
